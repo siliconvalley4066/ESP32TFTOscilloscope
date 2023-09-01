@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.00
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.01
  * The max realtime sampling rates are 10ksps with 2 channels and 20ksps with a channel.
  * In the I2S DMA mode, it can be set up to 500ksps, however effective samplig rate is 200ksps.
  * + Pulse Generator
@@ -75,7 +75,7 @@ const int TRIG_AUTO = 0;
 const int TRIG_NORM = 1;
 const int TRIG_SCAN = 2;
 const int TRIG_ONE  = 3;
-const char TRIG_Modes[4][5] PROGMEM = {"Auto", "Norm", "Scan", "One"};
+const char TRIG_Modes[4][5] PROGMEM = {"Auto", "Norm", "Scan", "One "};
 const int TRIG_E_UP = 0;
 const int TRIG_E_DN = 1;
 #define RATE_MIN 0
@@ -151,6 +151,8 @@ void setup(){
 //  pinMode(LED_BUILTIN, OUTPUT);     // sets the digital pin as output
   display.init();                    // initialise the library
   display.setRotation(1);
+  uint16_t calData[5] = { 368, 3538, 256, 3459, 7 };
+  display.setTouch(calData);
 
 //  Serial.begin(115200);
 //  Serial.printf("CORE1 = %d\n", xPortGetCoreID());
@@ -185,6 +187,8 @@ void CheckSW() {
   if ((ms - Millis)<200)
     return;
   Millis = ms;
+
+  CheckTouch();
 
 /* SW10 Menu
  * SW9  CH1 range down
@@ -333,13 +337,13 @@ void menu0_sw(byte sw) {
     break;
   case 6: // trigger level
     if (sw == 3) {        // trigger level +
-      display.drawFastHLine(XOFF+DISPLNG, YOFF+LCD_YMAX - trig_lv, 3, BGCOLOR); // erase old trig_lv tic
+      draw_trig_level(BGCOLOR); // erase old trig_lv mark
       if (trig_lv < LCD_YMAX) {
         trig_lv ++;
         set_trigger_ad();
       }
     } else if (sw == 7) { // trigger level -
-      display.drawFastHLine(XOFF+DISPLNG, YOFF+LCD_YMAX - trig_lv, 3, BGCOLOR); // erase old trig_lv tic
+      draw_trig_level(BGCOLOR); // erase old trig_lv mark
       if (trig_lv > 0) {
         trig_lv --;
         set_trigger_ad();
@@ -643,6 +647,7 @@ void DrawGrid() {
 
 void DrawText() {
   display.fillRect(DISPTXT,0,25,64, BGCOLOR); // clear text area that will be drawn below 
+  display.setTextSize(1);
 
   switch (menu) {
   case 0:
@@ -740,7 +745,16 @@ void DrawText() {
   }
   DrawText_big();
   if (!full_screen && !fft_mode)
-    display.drawFastHLine(XOFF+DISPLNG, YOFF+LCD_YMAX - trig_lv, 3, GRIDCOLOR); // draw trig_lv tic
+    draw_trig_level(GRIDCOLOR); // draw trig_lv mark
+}
+
+void draw_trig_level(int color) { // draw trig_lv mark
+  int x, y;
+
+  x = XOFF+DISPLNG+1; y = YOFF+LCD_YMAX - trig_lv;
+  display.drawLine(x, y, x+8, y+4, color);
+  display.drawLine(x+8, y+4, x+8, y-4, color);
+  display.drawLine(x+8, y-4, x, y, color);
 }
 
 //unsigned long fcount = 0;

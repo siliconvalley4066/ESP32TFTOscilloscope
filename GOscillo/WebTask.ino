@@ -119,6 +119,8 @@ void handle_trigger_mode() {
     } else if (val == "3") {
       trig_mode = 3;  // Once
     }
+    if (trig_mode != TRIG_ONE)
+      Start = true;
   }
 }
 
@@ -417,7 +419,9 @@ window.addEventListener("load", function () {
   const value_ch1_mode = '%CH1MODE%'
   const value_ch2_mode = '%CH2MODE%'
   const value_fft_mode = '%WAVEFFT%'
-  const value_run_hald = '%RUNHOLD%'
+  const value_run_hold = '%RUNHOLD%'
+  const value_pulse_onoff = '%PULSEONOFF%'
+  const value_dds_onoff = '%DDSONOFF%'
   var elements = document.getElementsByName("trig_ch");
   var len = elements.length;
   for (let i = 0; i < len; i++){
@@ -462,7 +466,23 @@ window.addEventListener("load", function () {
   len = elements.length;
   for (let i = 0; i < len; i++){
     console.log(elements.item(i).value);
-    if (elements.item(i).value == value_run_hald){
+    if (elements.item(i).value == value_run_hold){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("pwm_on");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_pulse_onoff){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("dds_on");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_dds_onoff){
       elements.item(i).checked = true;
     }
   }
@@ -509,7 +529,7 @@ function sendbutton(frameid) {
 <label><input type="radio" name="trig_edge" value="down">DOWN</label>
 </form></div>
 <form id='trigger_lvl'><label>Trigger Level</label>
-<input type="range" name="trig_lvl" min="0" max="199" step="1" value="50"></form>
+<input type="range" name="trig_lvl" min="0" max="199" step="1" value="%TRIGGLEVEL%"></form>
 <div>
 <form id='f_run_hold' onclick='sendbutton(this.id)'>
 <label><input type="radio" name="run_hold" value="run">RUN</label>
@@ -525,7 +545,7 @@ function sendbutton(frameid) {
 <label><input type="radio" name="ch1_mode" value="choff">OFF</label>
 </form>
 <form id='offset_1' method='post'><label>offset</label>
-<input type="range" name="offset1" min="-100" max="100" step="1" value="0">
+<input type="range" name="offset1" min="-100" max="100" step="1" value="%CH1OFFSET%">
 <button type="submit" name='reset1' value='1'>reset</button></form>
 </div>
 <div>
@@ -536,7 +556,7 @@ function sendbutton(frameid) {
 <label><input type="radio" name="ch2_mode" value="choff">OFF</label>
 </form>
 <form id='offset_2' method='post'><label>offset</label>
-<input type="range" name="offset2" min="-100" max="100" step="1" value="0">
+<input type="range" name="offset2" min="-100" max="100" step="1" value="%CH2OFFSET%">
 <button type="submit" name='reset2' value='2'>reset</button></form>
 </div>
 <hr>
@@ -585,8 +605,11 @@ function sendbutton(frameid) {
   html.replace("%WAVEFORM1%", Modes[ch0_mode]);
   html.replace("%WAVEFORM2%", Modes[ch1_mode]);
   html.replace("%TRIGEDGE%", trig_edge==TRIG_E_DN?"down":"up");
+  html.replace("%TRIGGLEVEL%", String(trig_lv));
   html.replace("%WAVEFFT%", fft_mode?"fft":"wave");
   html.replace("%RUNHOLD%", Start?"run":"hold");
+  html.replace("%PULSEONOFF%", pulse_mode?"on":"off");
+  html.replace("%DDSONOFF%", dds_mode?"on":"off");
   if (ch0_mode == MODE_ON) {
     html.replace("%CH1MODE%", "chon");
   } else if (ch0_mode == MODE_INV) {
@@ -601,6 +624,8 @@ function sendbutton(frameid) {
   } else if (ch1_mode == MODE_OFF) {
     html.replace("%CH2MODE%", "choff");
   }
+  html.replace("%CH1OFFSET%", String((ch0_off * VREF[range0]) / 4096));
+  html.replace("%CH2OFFSET%", String((ch1_off * VREF[range1]) / 4096));
 
   // send the HTML
   server.send(200, "text/html", html);

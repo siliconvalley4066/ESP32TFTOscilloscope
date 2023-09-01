@@ -169,6 +169,19 @@ void disp_dds_freq(void) {
   }
 }
 
+void disp_dds_freq_btm(void) {
+  if (dac_cw_mode) {
+    float frequency = RTC_FAST_CLK_FREQ_APPROX * (float) ifreq / 65536.0;
+    if (frequency < 100000.0)
+      display.print(frequency, 2);
+    else
+      display.print(frequency, 0);
+  } else {
+    display.print((float)ifreq * 0.01, 2);
+  }
+  display.print("Hz");
+}
+
 void disp_dds_wave(void) {
   display.print(Wavename[wave_id]); 
 }
