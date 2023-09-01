@@ -39,6 +39,7 @@ void handleRoot(void) {
     handle_pwm_onoff();
     handle_dds_onoff();
     handle_wave_select();
+    saveTimer = 5000;     // set EEPROM save timer to 5 secnd
     return;
   }
   index_html(NULL);
@@ -247,9 +248,9 @@ void handle_wave_fft() {
   if (val != NULL) {
     Serial.println(val);
     if (val == "wave") {
-      fft_mode = false;  // trigger fall
+      wfft = false;
     } else if (val == "fft") {
-      fft_mode = true;  // trigger rise
+      wfft = true;
     }
     server.send(200, "text/html", "OK");  // response 200, send OK
   }

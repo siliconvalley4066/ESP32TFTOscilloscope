@@ -164,18 +164,6 @@ void update_ifrq(long diff) {
 }
 
 void disp_dds_freq(void) {
-  display.setTextColor(TXTCOLOR, BGCOLOR);
-  if (dac_cw_mode) {
-    float frequency = RTC_FAST_CLK_FREQ_APPROX * (float) ifreq / 65536.0;
-    display.setCursor(DISPTXT-7*6, 56);
-    display.print(frequency, 2); display.print(F("Hz"));
-  } else {
-    display.setCursor(DISPTXT-4*6, 56);
-    display.print((float)ifreq * 0.01, 2); display.print(F("Hz"));
-  }
-}
-
-void disp_dds_freq_btm(void) {
   if (dac_cw_mode) {
     float frequency = RTC_FAST_CLK_FREQ_APPROX * (float) ifreq / 65536.0;
     if (frequency < 100000.0)

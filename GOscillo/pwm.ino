@@ -64,40 +64,6 @@ void update_frq(int diff) {
 void disp_pulse_frq(void) {
 //  freq = ledcReadFreq(LEDC_CHANNEL_0);
   double freq = pulse_frq();
-  display.setTextColor(TXTCOLOR, BGCOLOR);
-  display.setCursor(DISPTXT-9*6, txtLINE7);
-  if (freq < 10.0) {
-    display.print(freq, 5);
-  } else if (freq < 100.0) {
-    display.print(freq, 4);
-  } else if (freq < 1000.0) {
-    display.print(freq, 3);
-  } else if (freq < 10000.0) {
-    display.print(freq, 2);
-  } else if (freq < 100000.0) {
-    display.print(freq, 1);
-  } else if (freq < 1000000.0) {
-    display.setCursor(DISPTXT-8*6, txtLINE7);
-    display.print(freq, 0);
-  } else if (freq < 10000000.0) {
-    display.print(freq, 0);
-  } else {
-    display.setCursor(DISPTXT-10*6, txtLINE7);
-    display.print(freq, 0);
-  }
-  display.print(F("Hz"));
-  display.setCursor(DISPTXT-6*6, txtLINE6);
-  disp_pulse_dty();
-}
-
-void disp_pulse_dty(void) {
-//  display.print(duty*100.0/256.0, 1); display.print('%');
-  display.print(duty*0.390625, 1); display.print('%');
-}
-
-void disp_pulse_frq_btm(void) {
-//  freq = ledcReadFreq(LEDC_CHANNEL_0);
-  double freq = pulse_frq();
   if (freq < 10000000.0) {
     display.print(" ");
   }
@@ -119,10 +85,15 @@ void disp_pulse_frq_btm(void) {
   } else {
     display.print(freq, 0);
   }
-  display.print(F("Hz "));
+  display.print("Hz ");
   if ((duty*100.0/256.0) < 9.95) {
     display.print(" ");
   }
+}
+
+void disp_pulse_dty(void) {
+//  display.print(duty*100.0/256.0, 1); display.print('%');
+  display.print(duty*0.390625, 1); display.print("%  ");
 }
 
 void pulse_start() {
