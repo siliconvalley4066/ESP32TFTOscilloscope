@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.01
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.02
  * The max realtime sampling rates are 10ksps with 2 channels and 20ksps with a channel.
  * In the I2S DMA mode, it can be set up to 500ksps, however effective samplig rate is 200ksps.
  * + Pulse Generator
@@ -93,7 +93,7 @@ const unsigned long HREF[] PROGMEM = {20, 40, 100, 133, 200, 400, 500, 800, 2000
 const char Ranges[5][5] PROGMEM = {" 1V ", "0.5V", "0.2V", "0.1V", "50mV"};
 byte range0 = RANGE_MIN;
 byte range1 = RANGE_MIN;
-byte ch0_mode = MODE_ON, ch1_mode = MODE_ON, rate = 0, orate;
+byte ch0_mode = MODE_ON, ch1_mode = MODE_ON, rate = 0, orate, wrate = 0;
 byte trig_mode = TRIG_AUTO, trig_lv = 10, trig_edge = TRIG_E_UP, trig_ch = ad_ch0;
 bool Start = true;  // Start sampling
 byte item = 0;      // Default item
@@ -189,6 +189,10 @@ void CheckSW() {
   Millis = ms;
 
   CheckTouch();
+  if (wrate != 0) {
+    updown_rate(wrate);
+    wrate = 0;
+  }
 
 /* SW10 Menu
  * SW9  CH1 range down

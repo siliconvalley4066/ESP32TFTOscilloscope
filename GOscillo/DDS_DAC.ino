@@ -89,6 +89,12 @@ void rotate_wave(bool fwd) {
   memcpy((void*)wavebuf, wp, 256);
 }
 
+void set_wave(int id) {
+  wave_id = id;
+  wp = (unsigned char *) wavetable[wave_id];
+  memcpy((void*)wavebuf, wp, 256);
+}
+
 //******************************************************************
 // Timer Interrupt Service at 5 KHz = 200uSec
 // this is the timebase REFCLOCK for the DDS generator

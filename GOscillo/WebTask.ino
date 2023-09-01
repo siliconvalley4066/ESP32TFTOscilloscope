@@ -38,6 +38,8 @@ void handleRoot(void) {
     handle_wave_fft();
     handle_pwm_onoff();
     handle_dds_onoff();
+    handle_wave_select();
+    return;
   }
   index_html(NULL);
 }
@@ -53,6 +55,7 @@ void handle_ch1_mode() {
     } else if (val == "choff") {
       ch0_mode = MODE_OFF;      // CH1 OFF
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -67,18 +70,25 @@ void handle_ch2_mode() {
     } else if (val == "choff") {
       ch1_mode = MODE_OFF;      // CH2 OFF
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
 void handle_rate() {
   String val = server.arg("rate");
   if (val != NULL) {
+    int nrate = rate;
     Serial.println(val);
     if (val == "1") {
-      updown_rate(3);      // fast
+      wrate = 3;    // fast
+      if (rate > RATE_MIN) nrate = rate - 1;
     } else if (val == "0") {
-      updown_rate(7);      // slow
+      wrate = 7;    // slow
+      if (rate < RATE_MAX) nrate = rate + 1;
     }
+    String strrate;
+    strrate = Rates[nrate];
+    server.send(200, "text/html", strrate+((nrate > RATE_DMA)?"":" DMA"));  // response 200, send OK
   }
 }
 
@@ -91,6 +101,12 @@ void handle_range1() {
     } else if (val == "0") {
       updown_ch0range(7);  // range1 down
     }
+    String ch1acdc;
+    if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
+      ch1acdc = "AC ";
+    else
+      ch1acdc = "DC ";
+    server.send(200, "text/html", ch1acdc + Ranges[range0]);  // response 200, send OK
   }
 }
 
@@ -103,6 +119,12 @@ void handle_range2() {
     } else if (val == "0") {
       updown_ch1range(7);  // range2 down
     }
+    String ch2acdc;
+    if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
+      ch2acdc = "AC ";
+    else
+      ch2acdc = "DC ";
+    server.send(200, "text/html", ch2acdc + Ranges[range1]);  // response 200, send OK
   }
 }
 
@@ -121,6 +143,7 @@ void handle_trigger_mode() {
     }
     if (trig_mode != TRIG_ONE)
       Start = true;
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -133,6 +156,7 @@ void handle_trig_ch() {
     } else if (val == "ch2") {
       trig_ch = ad_ch1;
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -145,6 +169,7 @@ void handle_trig_edge() {
     } else if (val == "up") {
       trig_edge = TRIG_E_UP;  // trigger rise
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -154,6 +179,7 @@ void handle_trig_level() {
     Serial.println(val);
     trig_lv = val.toInt();
     set_trigger_ad();
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -162,9 +188,11 @@ void handle_run_hold() {
   if (val == "run") {
     Serial.println(val);
     Start = true;
+    server.send(200, "text/html", "OK");  // response 200, send OK
   } else if (val == "hold") {
     Serial.println(val);
     Start = false;
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -177,15 +205,17 @@ void handle_ch_offset1() {
       else
         ch0_off = 0;
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   } else if (server.hasArg("offset1")) {
     String val = server.arg("offset1");
     if (val != NULL) {
-      Serial.println(val);
+//      Serial.println(val);
       long offset = val.toInt();
       ch0_off = (4096 * offset)/VREF[range0];
       if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
         ch0_off += ac_offset[range0];
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -198,15 +228,17 @@ void handle_ch_offset2() {
       else
         ch1_off = 0;
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   } else if (server.hasArg("offset2")) {
     String val = server.arg("offset2");
     if (val != NULL) {
-      Serial.println(val);
+//      Serial.println(val);
       long offset = val.toInt();
       ch1_off = (4096 * offset)/VREF[range1];
       if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
         ch1_off += ac_offset[range1];
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -219,6 +251,7 @@ void handle_wave_fft() {
     } else if (val == "fft") {
       fft_mode = true;  // trigger rise
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -234,6 +267,7 @@ void handle_pwm_onoff() {
       pulse_close();
       pulse_mode = false;
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
   }
 }
 
@@ -248,6 +282,16 @@ void handle_dds_onoff() {
       dds_close();
       dds_mode = false;
     }
+    server.send(200, "text/html", "OK");  // response 200, send OK
+  }
+}
+
+void handle_wave_select() {
+  String val = server.arg("wave_select");
+  if (val != NULL) {
+    Serial.println(val);
+    server.send(200, "text/html", "OK");  // response 200, send OK
+    set_wave(val.toInt());
   }
 }
 
@@ -362,58 +406,6 @@ ws.onmessage = function(evt) {
 </head>
 <script type="text/javascript">
 window.addEventListener("load", function () {
-  function sendData() {
-    const XHR = new XMLHttpRequest();
-    const FD  = new FormData(form);
-    XHR.open("POST", "/");
-    XHR.send(FD);
-  }
-  const form = document.getElementById("trig_mode");
-  form.addEventListener("change", function (event) {
-    event.preventDefault();
-    sendData();
-  });
-});
-window.addEventListener("load", function () {
-  function sendData() {
-    const XHR = new XMLHttpRequest();
-    const FD  = new FormData(form);
-    XHR.open("POST", "/");
-    XHR.send(FD);
-  }
-  const form = document.getElementById("trigger_lvl");
-  form.addEventListener("input", function (event) {
-    event.preventDefault();
-    sendData();
-  });
-});
-window.addEventListener("load", function () {
-  function sendData() {
-    const XHR = new XMLHttpRequest();
-    const FD  = new FormData(form);
-    XHR.open("POST", "/");
-    XHR.send(FD);
-  }
-  const form = document.getElementById("offset_1");
-  form.addEventListener("input", function (event) {
-    event.preventDefault();
-    sendData();
-  });
-});
-window.addEventListener("load", function () {
-  function sendData() {
-    const XHR = new XMLHttpRequest();
-    const FD  = new FormData(form);
-    XHR.open("POST", "/");
-    XHR.send(FD);
-  }
-  const form = document.getElementById("offset_2");
-  form.addEventListener("input", function (event) {
-    event.preventDefault();
-    sendData();
-  });
-});
-window.addEventListener("load", function () {
   const value_trig_ch = '%TRIGCH%'
   const value_trig_edge = '%TRIGEDGE%'
   const value_ch1_mode = '%CH1MODE%'
@@ -487,29 +479,103 @@ window.addEventListener("load", function () {
     }
   }
 });
-function sendbutton(frameid) {
-  const form = document.getElementById(frameid);
-  const XHR = new XMLHttpRequest();
-  var FD  = new FormData(form);
-  XHR.open("POST", "/");
-  XHR.send(FD);
-};
+async function postform(frameid) {
+  try {
+    const form = new FormData(document.getElementById(frameid));
+    const response = await fetch("/", {
+      method: "POST",
+      body: form
+    });
+    if (response.ok) {
+      const text = await response.text();
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
+async function postrate(i) {
+  const output = document.getElementById("rate_area");
+  try {
+    var form = new FormData()
+    form.append('rate', i)
+    const response = await fetch("/", {
+      method: "POST",
+      body: form
+    });
+    if (response.ok) {
+      const text = await response.text();
+      output.textContent = text;
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
+async function postrange1(i) {
+  const output = document.getElementById("range1_area");
+  try {
+    var form = new FormData()
+    form.append('range1', i)
+    const response = await fetch("/", {
+      method: "POST",
+      body: form
+    });
+    if (response.ok) {
+      const text = await response.text();
+      output.textContent = text;
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
+async function postrange2(i) {
+  const output = document.getElementById("range2_area");
+  try {
+    var form = new FormData()
+    form.append('range2', i)
+    const response = await fetch("/", {
+      method: "POST",
+      body: form
+    });
+    if (response.ok) {
+      const text = await response.text();
+      output.textContent = text;
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
+async function postreset(button_id) {
+  try {
+    const btn = document.getElementById(button_id);
+    var form = new FormData()
+    form.append(btn.name, btn.value);
+    const response = await fetch("/", {
+      method: "POST",
+      body: form
+    });
+    if (response.ok) {
+      const text = await response.text();
+      console.log(text);
+      if (btn.value == '1') {
+        document.getElementById("ofsval").value = '0';
+      } else {
+        document.getElementById("ofsva2").value = '0';
+      }
+    }
+  } catch (error) { console.log(error); }
+}
 </script>
 <body>
-<h1>ESP32 Web Oscilloscope ver. 1.25</h1>
+<h3>ESP32 Web Oscilloscope ver. 1.30</h3>
 <div style='float: left; margin-right: 10px'>
 <canvas id='cvs1' width='601' height='401' class='float'></canvas></div>
-<form method='post'><label>Rate: %RATE% %REALDMA%</label>
-  <button name='rate' value='1'>FAST</button>
-  <button name='rate' value='0'>SLOW</button></form>
-<form method='post'><label>Range1: %RANGE1% </label>
-  <button name='range1' value='1'>UP</button>
-  <button name='range1' value='0'>DOWN</button></form>
-<form method='post'><label>Range2: %RANGE2% </label>
-  <button name='range2' value='1'>UP</button>
-  <button name='range2' value='0'>DOWN</button></form>
+<form id='rate0'>Rate: <label id="rate_area">%RATE% %REALDMA%</label>
+  <button type="button" name='rate' value='1' onclick='postrate(this.value)'>FAST</button>
+  <button type="button" name='rate' value='0' onclick='postrate(this.value)'>SLOW</button></form>
+<form id='range01'>Range1: <label id="range1_area">%RANGE1% </label>
+  <button type="button" name='range1' value='1' onclick='postrange1(this.value)'>UP</button>
+  <button type="button" name='range1' value='0' onclick='postrange1(this.value)'>DOWN</button></form>
+<form id='range02'>Range2: <label id="range2_area">%RANGE2% </label>
+  <button type="button" name='range2' value='1' onclick='postrange2(this.value)'>UP</button>
+  <button type="button" name='range2' value='0' onclick='postrange2(this.value)'>DOWN</button></form>
 <div class='input-field col s4'>
-<form id='trig_mode'><label>Trigger Mode</label>
+<form id='trig_mode' onchange='postform(this.id)'><label>Trigger Mode</label>
   <select name='trigger_mode'>
     <option value='0'>Auto</option>
     <option value='1'>Normal</option>
@@ -517,58 +583,58 @@ function sendbutton(frameid) {
     <option value='3'>Once</option>
   </select></form></div>
 <div>
-<form id='trigsrc' onchange='sendbutton(this.id)'>
+<form id='trigsrc' onchange='postform(this.id)'>
 <label>Trigger Source</label>
 <label><input type="radio" name="trig_ch" value="ch1">CH1</label>
 <label><input type="radio" name="trig_ch" value="ch2">CH2</label>
 </form></div>
 <div>
-<form id='trigedge' onchange='sendbutton(this.id)'>
+<form id='trigedge' onchange='postform(this.id)'>
 <label>Trigger Edge</label>
 <label><input type="radio" name="trig_edge" value="up">UP</label>
 <label><input type="radio" name="trig_edge" value="down">DOWN</label>
 </form></div>
-<form id='trigger_lvl'><label>Trigger Level</label>
+<form id='trigger_lvl' oninput='postform(this.id)'><label>Trigger Level</label>
 <input type="range" name="trig_lvl" min="0" max="199" step="1" value="%TRIGGLEVEL%"></form>
 <div>
-<form id='f_run_hold' onclick='sendbutton(this.id)'>
+<form id='f_run_hold' onclick='postform(this.id)'>
 <label><input type="radio" name="run_hold" value="run">RUN</label>
 <label><input type="radio" name="run_hold" value="hold">HOLD</label>
 </form>
 </div>
 <hr>
 <div>
-<form id='waveform1' onchange='sendbutton(this.id)'>
+<form id='waveform1' onchange='postform(this.id)'>
 <label>CH1</label>
 <label><input type="radio" name="ch1_mode" value="chon">ON</label>
 <label><input type="radio" name="ch1_mode" value="chinv">INV</label>
 <label><input type="radio" name="ch1_mode" value="choff">OFF</label>
 </form>
-<form id='offset_1' method='post'><label>offset</label>
-<input type="range" name="offset1" min="-100" max="100" step="1" value="%CH1OFFSET%">
-<button type="submit" name='reset1' value='1'>reset</button></form>
+<form id='offset_1' oninput='postform(this.id)'><label>offset</label>
+<input type="range" id='ofsval' name="offset1" min="-100" max="100" step="1" value="%CH1OFFSET%">
+<button type="button" id='reset_button1' name='reset1' value='1' onclick='postreset(this.id)'>reset</button></form>
 </div>
 <div>
-<form id='waveform2' onchange='sendbutton(this.id)'>
+<form id='waveform2' onchange='postform(this.id)'>
 <label>CH2</label>
 <label><input type="radio" name="ch2_mode" value="chon">ON</label>
 <label><input type="radio" name="ch2_mode" value="chinv">INV</label>
 <label><input type="radio" name="ch2_mode" value="choff">OFF</label>
 </form>
-<form id='offset_2' method='post'><label>offset</label>
-<input type="range" name="offset2" min="-100" max="100" step="1" value="%CH2OFFSET%">
-<button type="submit" name='reset2' value='2'>reset</button></form>
+<form id='offset_2' oninput='postform(this.id)'><label>offset</label>
+<input type="range" id='ofsva2' name="offset2" min="-100" max="100" step="1" value="%CH2OFFSET%">
+<button type="button" id='reset_button2' name='reset2' value='2' onclick='postreset(this.id)'>reset</button></form>
 </div>
 <hr>
 <div>
-<form id='fft' onchange='sendbutton(this.id)'>
+<form id='fft' onchange='postform(this.id)'>
 <label></label>
 <label><input type="radio" name="wavefft" value="wave">Wave</label>
 <label><input type="radio" name="wavefft" value="fft">FFT</label>
 </form></div>
 
 <div>
-<form id='f_pwm' onclick='sendbutton(this.id)'>
+<form id='f_pwm' onclick='postform(this.id)'>
 <label>Pulse</label>
 <label><input type="radio" name="pwm_on" value="on">on</label>
 <label><input type="radio" name="pwm_on" value="off">off</label>
@@ -576,12 +642,40 @@ function sendbutton(frameid) {
 </div>
 
 <div>
-<form id='f_dds' onclick='sendbutton(this.id)'>
+<form id='f_dds' onclick='postform(this.id)'>
 <label>Waveform</label>
 <label><input type="radio" name="dds_on" value="on">on</label>
 <label><input type="radio" name="dds_on" value="off">off</label>
 </form>
 </div>
+
+<div>
+<form id='waveselect' onchange='postform(this.id)'><label>Wave Select</label>
+  <select name='wave_select'>
+    <option value='0'>sine256</option>
+    <option value='1'>saw256</option>
+    <option value='2'>revsaw256</option>
+    <option value='3'>triangle</option>
+    <option value='4'>rect256</option>
+    <option value='5'>pulse20</option>
+    <option value='6'>pulse10</option>
+    <option value='7'>pulse05</option>
+    <option value='8'>delta</option>
+    <option value='9'>noise</option>
+    <option value='10'>gaussian noise</option>
+    <option value='11'>ecg</option>
+    <option value='12'>sinc5</option>
+    <option value='13'>sinc10</option>
+    <option value='14'>sinc20</option>
+    <option value='15'>sine2 harmonic</option>
+    <option value='16'>sine3 harmonic</option>
+    <option value='17'>chopped sine</option>
+    <option value='18'>sinabs</option>
+    <option value='19'>trapezoid</option>
+    <option value='20'>step2</option>
+    <option value='21'>step4</option>
+    <option value='22'>chainsaw</option>
+  </select></form></div>
 
 </body>
 </html>
