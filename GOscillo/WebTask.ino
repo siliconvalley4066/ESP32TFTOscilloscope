@@ -1,0 +1,654 @@
+#include <WiFi.h>
+#include <WebServer.h>
+#include <WebSocketsServer.h> // arduinoWebSockets library
+
+WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
+
+// WiFi information
+//#define WIFI_ACCESS_POINT
+#ifndef WIFI_ACCESS_POINT
+const char* ssid = "XXXX";
+const char* pass = "YYYY";
+#else
+const char* apssid = "ESP32OSCILLO";
+const char* password = "12345678";
+const IPAddress ip(192, 168, 4, 1);
+const IPAddress subnet(255, 255, 255, 0);
+#endif
+
+// Initial Screen
+void handleRoot(void) {
+//  xTaskCreatePinnedToCore(index_html, "IndexProcess", 4096, NULL, 1, NULL, PRO_CPU_NUM); //Core 0でタスク開始
+
+  if (server.method() == HTTP_POST) {
+    Serial.println(server.argName(0));
+    handle_rate();
+    handle_range1();
+    handle_range2();
+    handle_trigger_mode();
+    handle_trig_ch();
+    handle_trig_edge();
+    handle_trig_level();
+    handle_run_hold();
+    handle_ch1_mode();
+    handle_ch_offset1();
+    handle_ch2_mode();
+    handle_ch_offset2();
+    handle_wave_fft();
+    handle_pwm_onoff();
+    handle_dds_onoff();
+  }
+  index_html(NULL);
+}
+
+void handle_ch1_mode() {
+  String val = server.arg("ch1_mode");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "chon") {
+      ch0_mode = MODE_ON;       // CH1 ON
+    } else if (val == "chinv") {
+      ch0_mode = MODE_INV;      // CH1 INV
+    } else if (val == "choff") {
+      ch0_mode = MODE_OFF;      // CH1 OFF
+    }
+  }
+}
+
+void handle_ch2_mode() {
+  String val = server.arg("ch2_mode");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "chon") {
+      ch1_mode = MODE_ON;       // CH2 ON
+    } else if (val == "chinv") {
+      ch1_mode = MODE_INV;      // CH2 INV
+    } else if (val == "choff") {
+      ch1_mode = MODE_OFF;      // CH2 OFF
+    }
+  }
+}
+
+void handle_rate() {
+  String val = server.arg("rate");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "1") {
+      updown_rate(3);      // fast
+    } else if (val == "0") {
+      updown_rate(7);      // slow
+    }
+  }
+}
+
+void handle_range1() {
+  String val = server.arg("range1");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "1") {
+      updown_ch0range(3);  // range1 up
+    } else if (val == "0") {
+      updown_ch0range(7);  // range1 down
+    }
+  }
+}
+
+void handle_range2() {
+  String val = server.arg("range2");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "1") {
+      updown_ch1range(3);  // range2 up
+    } else if (val == "0") {
+      updown_ch1range(7);  // range2 down
+    }
+  }
+}
+
+void handle_trigger_mode() {
+  String val = server.arg("trigger_mode");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "0") {
+      trig_mode = 0;  // Auto
+    } else if (val == "1") {
+      trig_mode = 1;  // Normal
+    } else if (val == "2") {
+      trig_mode = 2;  // Scan
+    } else if (val == "3") {
+      trig_mode = 3;  // Once
+    }
+  }
+}
+
+void handle_trig_ch() {
+  String val = server.arg("trig_ch");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "ch1") {
+      trig_ch = ad_ch0;
+    } else if (val == "ch2") {
+      trig_ch = ad_ch1;
+    }
+  }
+}
+
+void handle_trig_edge() {
+  String val = server.arg("trig_edge");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "down") {
+      trig_edge = TRIG_E_DN;  // trigger fall
+    } else if (val == "up") {
+      trig_edge = TRIG_E_UP;  // trigger rise
+    }
+  }
+}
+
+void handle_trig_level() {
+  String val = server.arg("trig_lvl");
+  if (val != NULL) {
+    Serial.println(val);
+    trig_lv = val.toInt();
+    set_trigger_ad();
+  }
+}
+
+void handle_run_hold() {
+  String val = server.arg("run_hold");
+  if (val == "run") {
+    Serial.println(val);
+    Start = true;
+  } else if (val == "hold") {
+    Serial.println(val);
+    Start = false;
+  }
+}
+
+void handle_ch_offset1() {
+  if (server.hasArg("reset1")) {
+    Serial.println("reset1");
+    if (server.arg("reset1").equals("1")) {
+      if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
+        ch0_off = ac_offset[range0];
+      else
+        ch0_off = 0;
+    }
+  } else if (server.hasArg("offset1")) {
+    String val = server.arg("offset1");
+    if (val != NULL) {
+      Serial.println(val);
+      long offset = val.toInt();
+      ch0_off = (4096 * offset)/VREF[range0];
+      if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
+        ch0_off += ac_offset[range0];
+    }
+  }
+}
+
+void handle_ch_offset2() {
+  if (server.hasArg("reset2")) {
+    Serial.println("reset2");
+    if (server.arg("reset2").equals("2")) {
+      if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
+        ch1_off = ac_offset[range1];
+      else
+        ch1_off = 0;
+    }
+  } else if (server.hasArg("offset2")) {
+    String val = server.arg("offset2");
+    if (val != NULL) {
+      Serial.println(val);
+      long offset = val.toInt();
+      ch1_off = (4096 * offset)/VREF[range1];
+      if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
+        ch1_off += ac_offset[range1];
+    }
+  }
+}
+
+void handle_wave_fft() {
+  String val = server.arg("wavefft");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "wave") {
+      fft_mode = false;  // trigger fall
+    } else if (val == "fft") {
+      fft_mode = true;  // trigger rise
+    }
+  }
+}
+
+void handle_pwm_onoff() {
+  String val = server.arg("pwm_on");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "on") {
+      update_frq(0);
+      pulse_start();
+      pulse_mode = true;
+    } else if (val == "off") {
+      pulse_close();
+      pulse_mode = false;
+    }
+  }
+}
+
+void handle_dds_onoff() {
+  String val = server.arg("dds_on");
+  if (val != NULL) {
+    Serial.println(val);
+    if (val == "on") {
+      dds_setup();
+      dds_mode = true;
+    } else if (val == "off") {
+      dds_close();
+      dds_mode = false;
+    }
+  }
+}
+
+void index_html(void * pvParameters) {
+String html;
+
+//<meta http-equiv="refresh" content="1; URL=">
+  html = R"=====(
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><title>ESP32 Web Oscilloscope</title>
+<style>body { background: #fafafa; }
+canvas { display:block; background:#ffe; margin:0 auto; }</style>
+<script type="text/javascript">
+var ws = new WebSocket('ws://' + window.location.hostname + ':81/');
+ws.binaryType = 'arraybuffer';
+ws.onmessage = function(evt) {
+  var wsRecvMsg = evt.data;
+  var datas = new Int16Array(wsRecvMsg);
+  var cv1 = document.getElementById('cvs1');
+  var ctx = cv1.getContext('2d');
+  if (!cv1||!cv1.getContext) { return false; }
+  var groundW= cv1.getAttribute('width');
+  var groundH= cv1.getAttribute('height');
+  ctx.fillStyle = "rgb(0,0,0)";
+  ctx.fillRect(0,0,groundW,groundH);
+  var groundX0= 0; var groundY0= groundH;
+  var pichX = 50;
+  var cnstH= groundH/4096;
+  var pichH = groundH/8;
+  const fftsamples = 128;
+  const displng = 300;
+  ctx.beginPath();
+  ctx.save();
+  ctx.strokeStyle = "rgb(128,128,128)";
+  ctx.lineWidth = 1;
+  for (var i = 0; i < groundW/pichX; i++){
+    ctx.moveTo(groundX0+i*pichX, groundY0);
+    ctx.lineTo(groundX0+i*pichX, 0);
+    for (var j=10; j<50; j=j+10){
+      ctx.moveTo(groundX0+i*pichX+j, 4*pichX-5);
+      ctx.lineTo(groundX0+i*pichX+j, 4*pichX+5);
+    }
+  }
+  ctx.moveTo(groundX0+groundW-1, groundY0);
+  ctx.lineTo(groundX0+groundW-1, 0);
+  for (var i = 0; i < groundH/pichH; i++){
+    ctx.moveTo(groundX0, groundY0-i*pichH);
+    ctx.lineTo(groundW, groundY0-i*pichH);
+    for (var j=10; j<50; j=j+10){
+      ctx.moveTo(6*pichX-5, groundY0-i*pichH-j);
+      ctx.lineTo(6*pichX+5, groundY0-i*pichH-j);
+    }
+  }
+  ctx.moveTo(groundX0, groundY0-i*pichH);
+  ctx.lineTo(groundW, groundY0-i*pichH);
+  ctx.stroke();
+  ctx.restore();
+  ctx.save();
+  ctx.beginPath();
+  ctx.strokeStyle = "rgb(0,255,0)";
+  if (datas.length == (fftsamples + 2)) {
+    var base = groundY0-cnstH*512;
+    for (var i = 1; i < fftsamples; i++){
+      ctx.moveTo(groundX0+4*i, base);
+      ctx.lineTo(groundX0+4*i, base-cnstH*datas[i]);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = "rgb(192,192,192)";
+    ctx.moveTo(0, base); ctx.lineTo(0, base+8);
+    ctx.moveTo(8*32, base); ctx.lineTo(8*32, base+8);
+    ctx.moveTo(8*64, base); ctx.lineTo(8*64, base+8);
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.font = "12pt Arial";
+    ctx.fillStyle = "rgb(192,192,192)";
+    for (var j = 10; j < 80; j += 10){
+      ctx.fillText(String(-j)+"dB", 555, 5 * j);
+    }
+    var nyquist = 1000 * datas[fftsamples] + datas[fftsamples+1];
+    ctx.textBaseline = "top";
+    ctx.fillText("0Hz", 0, base + 10);
+    ctx.textAlign = "center";
+    if ((nyquist/2) < 1000)
+      ctx.fillText(String(nyquist/2)+"Hz", 8*32, base + 10);
+    else
+      ctx.fillText(String(nyquist/2000)+"kHz", 8*32, base + 10);
+    if (nyquist < 1000)
+      ctx.fillText(String(nyquist)+"Hz", 8*64, base + 10);
+    else
+      ctx.fillText(String(nyquist/1000)+"kHz", 8*64, base + 10);
+  }
+  if (datas.length >= displng && datas[0] >= 0) {
+    ctx.moveTo(groundX0, groundY0-cnstH*datas[0]);
+    for (var i = 1; i < displng; i++){
+      ctx.lineTo(groundX0+2*i, groundY0-cnstH*datas[i]);
+    }
+  }
+  ctx.stroke();
+  if (datas.length == (displng+displng) && datas[displng] >= 0) {
+    ctx.beginPath();
+    ctx.strokeStyle = "rgb(255,255,0)";
+    ctx.moveTo(groundX0, groundY0-cnstH*datas[displng]);
+    for (var i = 1; i < displng; i++){
+      ctx.lineTo(groundX0+2*i, groundY0-cnstH*datas[i+displng]);
+    }
+    ctx.stroke();
+  }
+  ctx.restore();
+};
+</script>
+</head>
+<script type="text/javascript">
+window.addEventListener("load", function () {
+  function sendData() {
+    const XHR = new XMLHttpRequest();
+    const FD  = new FormData(form);
+    XHR.open("POST", "/");
+    XHR.send(FD);
+  }
+  const form = document.getElementById("trig_mode");
+  form.addEventListener("change", function (event) {
+    event.preventDefault();
+    sendData();
+  });
+});
+window.addEventListener("load", function () {
+  function sendData() {
+    const XHR = new XMLHttpRequest();
+    const FD  = new FormData(form);
+    XHR.open("POST", "/");
+    XHR.send(FD);
+  }
+  const form = document.getElementById("trigger_lvl");
+  form.addEventListener("input", function (event) {
+    event.preventDefault();
+    sendData();
+  });
+});
+window.addEventListener("load", function () {
+  function sendData() {
+    const XHR = new XMLHttpRequest();
+    const FD  = new FormData(form);
+    XHR.open("POST", "/");
+    XHR.send(FD);
+  }
+  const form = document.getElementById("offset_1");
+  form.addEventListener("input", function (event) {
+    event.preventDefault();
+    sendData();
+  });
+});
+window.addEventListener("load", function () {
+  function sendData() {
+    const XHR = new XMLHttpRequest();
+    const FD  = new FormData(form);
+    XHR.open("POST", "/");
+    XHR.send(FD);
+  }
+  const form = document.getElementById("offset_2");
+  form.addEventListener("input", function (event) {
+    event.preventDefault();
+    sendData();
+  });
+});
+window.addEventListener("load", function () {
+  const value_trig_ch = '%TRIGCH%'
+  const value_trig_edge = '%TRIGEDGE%'
+  const value_ch1_mode = '%CH1MODE%'
+  const value_ch2_mode = '%CH2MODE%'
+  const value_fft_mode = '%WAVEFFT%'
+  const value_run_hald = '%RUNHOLD%'
+  var elements = document.getElementsByName("trig_ch");
+  var len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_trig_ch){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("trig_edge");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_trig_edge){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("ch1_mode");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_ch1_mode){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("ch2_mode");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_ch2_mode){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("wavefft");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_fft_mode){
+      elements.item(i).checked = true;
+    }
+  }
+  elements = document.getElementsByName("run_hold");
+  len = elements.length;
+  for (let i = 0; i < len; i++){
+    console.log(elements.item(i).value);
+    if (elements.item(i).value == value_run_hald){
+      elements.item(i).checked = true;
+    }
+  }
+});
+function sendbutton(frameid) {
+  const form = document.getElementById(frameid);
+  const XHR = new XMLHttpRequest();
+  var FD  = new FormData(form);
+  XHR.open("POST", "/");
+  XHR.send(FD);
+};
+</script>
+<body>
+<h1>ESP32 Web Oscilloscope ver. 1.25</h1>
+<div style='float: left; margin-right: 10px'>
+<canvas id='cvs1' width='601' height='401' class='float'></canvas></div>
+<form method='post'><label>Rate: %RATE% %REALDMA%</label>
+  <button name='rate' value='1'>FAST</button>
+  <button name='rate' value='0'>SLOW</button></form>
+<form method='post'><label>Range1: %RANGE1% </label>
+  <button name='range1' value='1'>UP</button>
+  <button name='range1' value='0'>DOWN</button></form>
+<form method='post'><label>Range2: %RANGE2% </label>
+  <button name='range2' value='1'>UP</button>
+  <button name='range2' value='0'>DOWN</button></form>
+<div class='input-field col s4'>
+<form id='trig_mode'><label>Trigger Mode</label>
+  <select name='trigger_mode'>
+    <option value='0'>Auto</option>
+    <option value='1'>Normal</option>
+    <option value='2'>Scan</option>
+    <option value='3'>Once</option>
+  </select></form></div>
+<div>
+<form id='trigsrc' onchange='sendbutton(this.id)'>
+<label>Trigger Source</label>
+<label><input type="radio" name="trig_ch" value="ch1">CH1</label>
+<label><input type="radio" name="trig_ch" value="ch2">CH2</label>
+</form></div>
+<div>
+<form id='trigedge' onchange='sendbutton(this.id)'>
+<label>Trigger Edge</label>
+<label><input type="radio" name="trig_edge" value="up">UP</label>
+<label><input type="radio" name="trig_edge" value="down">DOWN</label>
+</form></div>
+<form id='trigger_lvl'><label>Trigger Level</label>
+<input type="range" name="trig_lvl" min="0" max="199" step="1" value="50"></form>
+<div>
+<form id='f_run_hold' onclick='sendbutton(this.id)'>
+<label><input type="radio" name="run_hold" value="run">RUN</label>
+<label><input type="radio" name="run_hold" value="hold">HOLD</label>
+</form>
+</div>
+<hr>
+<div>
+<form id='waveform1' onchange='sendbutton(this.id)'>
+<label>CH1</label>
+<label><input type="radio" name="ch1_mode" value="chon">ON</label>
+<label><input type="radio" name="ch1_mode" value="chinv">INV</label>
+<label><input type="radio" name="ch1_mode" value="choff">OFF</label>
+</form>
+<form id='offset_1' method='post'><label>offset</label>
+<input type="range" name="offset1" min="-100" max="100" step="1" value="0">
+<button type="submit" name='reset1' value='1'>reset</button></form>
+</div>
+<div>
+<form id='waveform2' onchange='sendbutton(this.id)'>
+<label>CH2</label>
+<label><input type="radio" name="ch2_mode" value="chon">ON</label>
+<label><input type="radio" name="ch2_mode" value="chinv">INV</label>
+<label><input type="radio" name="ch2_mode" value="choff">OFF</label>
+</form>
+<form id='offset_2' method='post'><label>offset</label>
+<input type="range" name="offset2" min="-100" max="100" step="1" value="0">
+<button type="submit" name='reset2' value='2'>reset</button></form>
+</div>
+<hr>
+<div>
+<form id='fft' onchange='sendbutton(this.id)'>
+<label></label>
+<label><input type="radio" name="wavefft" value="wave">Wave</label>
+<label><input type="radio" name="wavefft" value="fft">FFT</label>
+</form></div>
+
+<div>
+<form id='f_pwm' onclick='sendbutton(this.id)'>
+<label>Pulse</label>
+<label><input type="radio" name="pwm_on" value="on">on</label>
+<label><input type="radio" name="pwm_on" value="off">off</label>
+</form>
+</div>
+
+<div>
+<form id='f_dds' onclick='sendbutton(this.id)'>
+<label>Waveform</label>
+<label><input type="radio" name="dds_on" value="on">on</label>
+<label><input type="radio" name="dds_on" value="off">off</label>
+</form>
+</div>
+
+</body>
+</html>
+)=====";
+
+  String ch1acdc, ch2acdc;
+  if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
+    ch1acdc = "AC ";
+  else
+    ch1acdc = "DC ";
+  if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
+    ch2acdc = "AC ";
+  else
+    ch2acdc = "DC ";
+
+  html.replace("%RATE%", Rates[rate]);
+  html.replace("%REALDMA%", (rate > RATE_DMA)?"":"DMA");
+  html.replace("%RANGE1%", ch1acdc + Ranges[range0]);
+  html.replace("%RANGE2%", ch2acdc + Ranges[range1]);
+  html.replace("%TRIGCH%", trig_ch==ad_ch0?"ch1":"ch2");
+  html.replace("%WAVEFORM1%", Modes[ch0_mode]);
+  html.replace("%WAVEFORM2%", Modes[ch1_mode]);
+  html.replace("%TRIGEDGE%", trig_edge==TRIG_E_DN?"down":"up");
+  html.replace("%WAVEFFT%", fft_mode?"fft":"wave");
+  html.replace("%RUNHOLD%", Start?"run":"hold");
+  if (ch0_mode == MODE_ON) {
+    html.replace("%CH1MODE%", "chon");
+  } else if (ch0_mode == MODE_INV) {
+    html.replace("%CH1MODE%", "chinv");
+  } else if (ch0_mode == MODE_OFF) {
+    html.replace("%CH1MODE%", "choff");
+  }
+  if (ch1_mode == MODE_ON) {
+    html.replace("%CH2MODE%", "chon");
+  } else if (ch1_mode == MODE_INV) {
+    html.replace("%CH2MODE%", "chinv");
+  } else if (ch1_mode == MODE_OFF) {
+    html.replace("%CH2MODE%", "choff");
+  }
+
+  // send the HTML
+  server.send(200, "text/html", html);
+//  vTaskDelete(NULL);
+}
+
+void handleNotFound(void) {
+  server.send(404, "text/plain", "Not Found.");
+}
+
+void setup1(void * pvParameters) {
+  Serial.begin(115200);
+//  Serial.printf("CORE0 = %d\n", xPortGetCoreID());
+#ifdef WIFI_ACCESS_POINT
+  WiFi.disconnect(true);
+  delay(1000);
+  WiFi.softAP(apssid, password);
+  delay(100);
+  WiFi.softAPConfig(ip, ip, subnet);
+  IPAddress myIP = WiFi.softAPIP();
+#else
+// Connect to the WiFi access point
+  WiFi.begin(ssid, pass);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+  }
+#endif
+  // print out the IP address of the ESP32
+  Serial.print("WiFi Connected. IP = "); Serial.println(WiFi.localIP());
+//  Serial.print("WiFi Connected. GW = "); Serial.println(WiFi.gatewayIP());
+//  Serial.print("WiFi Connected. DNS = "); Serial.println(WiFi.dnsIP());
+
+  server.on("/", handleRoot);
+  server.onNotFound(handleNotFound);
+  server.begin();
+  webSocket.begin();
+  while (true) {
+    server.handleClient();
+    if (xTaskNotifyWait(0, 0, NULL, pdMS_TO_TICKS(0)) == pdTRUE) {
+      if (rate < RATE_ROLL && fft_mode) {
+        webSocket.broadcastBIN((byte *) payload, FFT_N + 4);
+      } else if (rate >= RATE_DUAL) {
+        webSocket.broadcastBIN((byte *) payload, SAMPLES * 4);
+      } else {
+        webSocket.broadcastBIN((byte *) payload, SAMPLES * 2);
+      }
+    }
+    webSocket.loop();
+    delay(1);
+  }
+}
