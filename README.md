@@ -26,4 +26,4 @@ arduinoWebSockets from https://github.com/Links2004/arduinoWebSockets<br>
 You need to customize the TFT_espi library by referring to the TFT_espi folder here.
 
 Schematics:<br>
-<img src="ESP32TFTGOscillo1.png">
+<img src="ESP32TFTGOscillo.png">
