@@ -60,7 +60,7 @@ void CheckTouch() {
       low_touch_base(x);
     else
       low_touch_func(x);
-  } else if (y > 30 && y < 210) {
+  } else if ((y > 30 && y < 210) & (x < (LCD_WIDTH - 35))) {  // avoid conflict with trigger level
     switch (item) {
     case SEL_RATE:
       if (x < (LCD_WIDTH / 2)) {  // minus
@@ -115,8 +115,7 @@ void CheckTouch() {
       update_ifrq(touch_diff(x));
       break;
     case SEL_NONE:
-      if (x < (LCD_WIDTH - 35))   // avoid halt during trigger level
-        Start = !Start;           // halt
+      Start = !Start;           // halt
       break;
     case SEL_PWMFREQ:
       update_frq(-touch_diff(x));
@@ -127,8 +126,7 @@ void CheckTouch() {
       break;
     default:                    // do nothing
       if (fft_mode == true) {
-        fft_mode = false;
-        display.fillScreen(BGCOLOR);
+        wfft = false;
       }
       break;
     }
@@ -211,8 +209,7 @@ void low_touch_base(uint16_t x) {
 void low_touch_func(uint16_t x) {
   if (item == SEL_FUNC) {
     if (x < 60) {             // FFT
-      fft_mode = true;
-      display.fillScreen(BGCOLOR);
+      wfft = true;
     } else if (x < 120) {     // PWM
       item = SEL_PWM;
       clear_bottom_text();                          // clear bottom text area
@@ -385,6 +382,9 @@ void DrawText_big() {
   } else if (item == SEL_OFST2) {
     set_menu_color(SEL_OFST2);
     display.print("POS2");
+  } else if (item == SEL_TGLVL) {
+    set_menu_color(SEL_TGLVL);
+    display.print("TGLV");
   } else {
     display.setTextColor(TFT_DARKGREY, BGCOLOR);
     display.print("VPOS");
@@ -718,11 +718,9 @@ void menu_sw(byte sw) {
     break;
   case SEL_FFT:   // FFT mode
     if (sw == BTN_RIGHT) {        // ON
-      fft_mode = true;
-      display.fillScreen(BGCOLOR);
+      wfft = true;
     } else if (sw == BTN_LEFT) {  // OFF
-      fft_mode = false;
-      display.fillScreen(BGCOLOR);
+      wfft = false;
     }
     break;
   case SEL_PWM: // PWM
@@ -873,7 +871,7 @@ void menu_updown(byte sw) {
 void increment_item() {
   ++item;
   if (item > SEL_DISPOFF) item = 0;
-  if (item != SEL_FFT) fft_mode = false;  // exit FFT mode
+  if (item != SEL_FFT) wfft = false;      // exit FFT mode
   if ((item == SEL_PWM) || (item == SEL_DDS) || (item == SEL_DISP))
     clear_bottom_text();                  // clear bottom text area
 }
@@ -881,7 +879,7 @@ void increment_item() {
 void decrement_item() {
   if (item > 0) --item;
   else item = SEL_DISPOFF;
-  if (item != SEL_FFT) fft_mode = false;  // exit FFT mode
+  if (item != SEL_FFT) wfft = false;      // exit FFT mode
   if ((item == SEL_FFT) || (item == SEL_PWM) || (item == SEL_DDSFREQ)
     || (item == SEL_PWMDUTY) || (item == SEL_DISPOFF))
     clear_bottom_text();                  // clear bottom text area

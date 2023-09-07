@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.03
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.04
  * The max realtime sampling rates are 10ksps with 2 channels and 20ksps with a channel.
  * In the I2S DMA mode, it can be set up to 500ksps.
  * + Pulse Generator
@@ -20,7 +20,10 @@
 TFT_eSPI display = TFT_eSPI();
 
 //#define BUTTON5DIR
+#define EEPROM_START 0
+#ifdef EEPROM_START
 #include <EEPROM.h>
+#endif
 #include "arduinoFFT.h"
 #define FFT_N 256
 arduinoFFT FFT = arduinoFFT();  // Create FFT object
@@ -87,7 +90,6 @@ byte ch0_mode = MODE_ON, ch1_mode = MODE_ON, rate = 0, orate, wrate = 0;
 byte trig_mode = TRIG_AUTO, trig_lv = 10, trig_edge = TRIG_E_UP, trig_ch = ad_ch0;
 bool Start = true;  // Start sampling
 byte item = 0;      // Default item
-byte menu = 0;      // Default menu
 short ch0_off = 0, ch1_off = 400;
 byte data[4][SAMPLES];                  // keep twice of the number of channels to make it a double buffer
 uint16_t cap_buf[NSAMP], cap_buf1[SAMPLES];
@@ -146,10 +148,13 @@ void setup(){
 
 //  Serial.begin(115200);
 //  Serial.printf("CORE1 = %d\n", xPortGetCoreID());
+#ifdef EEPROM_START
   EEPROM.begin(32);                     // set EEPROM size. Necessary for ESP32
   loadEEPROM();                         // read last settings from EEPROM
+#else
+  set_default();
+#endif
 //  set_default();
-//  menu = item >> 3;
   wfft = fft_mode;
   display.fillScreen(BGCOLOR);
 //  DrawGrid();
@@ -356,7 +361,7 @@ void scaleDataArray(byte ad_ch, int trig_point)
     ch_mode = ch1_mode;
     range = range1;
     pdata = data[sample+1];
-    idata = cap_buf1;
+   idata = &cap_buf1[trig_point];
     qdata = payload+SAMPLES;
   } else {
     ch_off = ch0_off;
@@ -524,7 +529,9 @@ void loop() {
   if (trig_mode == TRIG_ONE)
     Start = false;
   CheckSW();
+#ifdef EEPROM_START
   saveEEPROM();                         // save settings to EEPROM if necessary
+#endif
 }
 
 void draw_screen() {
@@ -578,12 +585,12 @@ void measure_frequency() {
 void measure_voltage() {
   int x, dave, dmax, dmin;
   byte y;
+  if (fft_mode) return;
   if (info_mode & 4) {
     x = textINFO, y = 62;       // Big
   } else {
     x = textINFO + 48, y = 42;  // Small
   }
-  if (fft_mode) return;
   if (ch0_mode == MODE_INV) {
     dave = (LCD_YMAX) * 10 - dataAve;
     dmax = dataMin;
@@ -732,7 +739,7 @@ void draw_scale() {
   }
 }
 
-#define EEPROM_START 0
+#ifdef EEPROM_START
 void saveEEPROM() {                   // Save the setting value in EEPROM after waiting a while after the button operation.
   int p = EEPROM_START;
   if (saveTimer > 0) {                // If the timer value is positive
@@ -770,6 +777,7 @@ void saveEEPROM() {                   // Save the setting value in EEPROM after 
     }
   }
 }
+#endif
 
 void set_default() {
   range0 = RANGE_MIN;
@@ -798,6 +806,7 @@ void set_default() {
 
 extern const byte wave_num;
 
+#ifdef EEPROM_START
 void loadEEPROM() { // Read setting values from EEPROM (abnormal values will be corrected to default)
   int p = EEPROM_START, error = 0;
 
@@ -852,3 +861,4 @@ void loadEEPROM() { // Read setting values from EEPROM (abnormal values will be 
   if (error > 0)
     set_default();
 }
+#endif
