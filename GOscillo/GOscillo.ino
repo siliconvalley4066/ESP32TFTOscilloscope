@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.04
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.05
  * The max realtime sampling rates are 10ksps with 2 channels and 20ksps with a channel.
  * In the I2S DMA mode, it can be set up to 500ksps.
  * + Pulse Generator
@@ -100,7 +100,7 @@ bool fft_mode = false, pulse_mode = false, dds_mode = false, fcount_mode = false
 byte info_mode = 3; // Text information display mode
 bool dac_cw_mode = false;
 int trigger_ad;
-bool wfft;
+volatile bool wfft, wdds;
 
 //#define LED_BUILTIN 2
 #define LEFTPIN   12  // LEFT
@@ -156,6 +156,7 @@ void setup(){
 #endif
 //  set_default();
   wfft = fft_mode;
+  wdds = dds_mode;
   display.fillScreen(BGCOLOR);
 //  DrawGrid();
 //  DrawText();
@@ -532,6 +533,14 @@ void loop() {
 #ifdef EEPROM_START
   saveEEPROM();                         // save settings to EEPROM if necessary
 #endif
+  if (wdds != dds_mode) {
+    if (wdds) {
+      dds_setup();
+    } else {
+      dds_close();
+    }
+    dds_mode = wdds;
+  }
 }
 
 void draw_screen() {

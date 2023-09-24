@@ -55,21 +55,23 @@ void dds_setup() {
 }
 
 void pwm_dds_setup() {
-  Setup_timer();
-  tword_m=pow(2,32)*ifreq*0.01/refclk; // calulate DDS new tuning word
-  wp = (unsigned char *) wavetable[wave_id];
-  memcpy((void*)wavebuf, wp, 256);
+  if (timer == NULL) {
+    Setup_timer();
+    tword_m=pow(2,32)*ifreq*0.01/refclk; // calulate DDS new tuning word
+    wp = (unsigned char *) wavetable[wave_id];
+    memcpy((void*)wavebuf, wp, 256);
+  }
+  timerAlarmEnable(timer);
 }
 
 void dds_close() {
   if (!dds_mode) return;
   if (dac_cw_mode) {
     dac_cw_generator_disable();
-    dac_output_disable(DAC_CHANNEL_1);
   } else {
     Close_timer();
   }
-  pinMode(DDSPin, INPUT_PULLUP);  // DDSPin= DAC output
+  dac_output_disable(DAC_CHANNEL_1);
 }
 
 void dds_set_freq() {
@@ -120,8 +122,8 @@ void Setup_timer() {
 
 void Close_timer() {
   timerAlarmDisable(timer);
-  timerEnd(timer);
-  timer = NULL;
+//  timerEnd(timer);
+//  timer = NULL;
 }
 
 void update_ifrq(long diff) {
@@ -161,6 +163,42 @@ void update_ifrq(long diff) {
     else
       dds_set_freq();
   }
+}
+
+float set_freq(float dfreq) {
+  long newfreq = 100.0 * dfreq;
+  if (dac_cw_mode && newfreq < 12970) {         // switch to PWM mode
+    dac_cw_generator_disable();
+    dac_cw_mode = false;
+    ifreq = round(newfreq);
+    pwm_dds_setup();
+  } else if (!dac_cw_mode && newfreq > 51879) { // switch to CW mode
+    Close_timer();
+    dac_cw_mode = true;
+    ifreq = dfreq * 65536.0 / RTC_FAST_CLK_FREQ_APPROX;
+    cw_dds_setup();
+  }
+  if (dac_cw_mode) {
+    ifreq = round(dfreq * 65536.0 / RTC_FAST_CLK_FREQ_APPROX);
+    ifreq = constrain(ifreq, 1, 99999);
+    SET_PERI_REG_BITS(SENS_SAR_DAC_CTRL1_REG, SENS_SW_FSTEP, ifreq, SENS_SW_FSTEP_S);
+    dfreq = RTC_FAST_CLK_FREQ_APPROX * (float) ifreq / 65536.0;
+  } else {
+    ifreq = constrain(newfreq, 1, 99999);
+    dds_set_freq();
+    dfreq = 0.01 * ifreq;
+  }
+  return dfreq;
+}
+
+float dds_freq(void) {
+  float frequency;
+  if (dac_cw_mode) {
+    frequency = RTC_FAST_CLK_FREQ_APPROX * (float) ifreq / 65536.0;
+  } else {
+    frequency = (float)ifreq * 0.01;
+  }
+  return frequency;
 }
 
 void disp_dds_freq(void) {

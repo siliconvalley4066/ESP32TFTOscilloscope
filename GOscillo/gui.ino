@@ -242,10 +242,10 @@ void low_touch_func(uint16_t x) {
     } else if (x < 120) {     // ON/OFF
       if (dds_mode == false) {  // turn on
         dds_setup();
-        dds_mode = true;
+        dds_mode = wdds = true;
       } else {                  // turn off
         dds_close();
-        dds_mode = false;
+        dds_mode = wdds = false;
       }
     } else if (x < 180) {     // WAVE
       item = SEL_DDSWAVE;
@@ -779,10 +779,10 @@ void menu_sw(byte sw) {
   case SEL_DDS:     // DDS
     if (sw == BTN_RIGHT) {        // +
       dds_setup();
-      dds_mode = true;
+      dds_mode = wdds = true;
     } else if (sw == BTN_LEFT) {  // -
       dds_close();
-      dds_mode = false;
+      dds_mode = wdds = false;
     }
     break;
   case SEL_DDSWAVE: // WAVE

@@ -39,6 +39,9 @@ void handleRoot(void) {
     handle_pwm_onoff();
     handle_dds_onoff();
     handle_wave_select();
+    handle_dds_freq();
+    handle_pwm_duty();
+    handle_pwm_freq();
     saveTimer = 5000;     // set EEPROM save timer to 5 secnd
     return;
   }
@@ -277,11 +280,9 @@ void handle_dds_onoff() {
   if (val != NULL) {
     Serial.println(val);
     if (val == "on") {
-      dds_setup();
-      dds_mode = true;
+      wdds = true;
     } else if (val == "off") {
-      dds_close();
-      dds_mode = false;
+      wdds = false;
     }
     server.send(200, "text/html", "OK");  // response 200, send OK
   }
@@ -293,6 +294,33 @@ void handle_wave_select() {
     Serial.println(val);
     server.send(200, "text/html", "OK");  // response 200, send OK
     set_wave(val.toInt());
+  }
+}
+
+void handle_dds_freq() {
+  String val = server.arg("dfreq");
+  if (val != NULL) {
+    Serial.println(val);
+    server.send(200, "text/html", String(set_freq((float)val.toFloat()), 2)); // response 200, send OK
+  }
+}
+
+void handle_pwm_duty() {
+  String val = server.arg("duty");
+  if (val != NULL) {
+    Serial.println(val);
+    duty = constrain(round(val.toFloat() * 2.56), 0, 255);
+    setduty();
+    server.send(200, "text/html", String(duty*100.0/256.0, 1)); // response 200, send OK
+  }
+}
+
+void handle_pwm_freq() {
+  String val = server.arg("wfreq");
+  if (val != NULL) {
+    Serial.println(val);
+    set_pulse_frq(val.toFloat());
+    server.send(200, "text/html", String(pulse_frq())); // response 200, send OK
   }
 }
 
@@ -561,9 +589,48 @@ async function postreset(button_id) {
     }
   } catch (error) { console.log(error); }
 }
+async function post_dfreq() {
+  const output = document.getElementById("pfreq");
+  try {
+    var form = new FormData()
+    form.append('dfreq', output.value)
+    const response = await fetch("/", {method: "POST", body: form});
+    if (response.ok) {
+      const text = await response.text();
+      output.value = text;
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
+async function post_wfreq() {
+  const output = document.getElementById("mfreq");
+  try {
+    var form = new FormData()
+    form.append('wfreq', output.value)
+    const response = await fetch("/", {method: "POST", body: form});
+    if (response.ok) {
+      const text = await response.text();
+      output.value = text;
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
+async function post_duty() {
+  const output = document.getElementById("pduty");
+  try {
+    var form = new FormData()
+    form.append('duty', output.value)
+    const response = await fetch("/", {method: "POST", body: form});
+    if (response.ok) {
+      const text = await response.text();
+      output.value = text;
+      console.log(text);
+    }
+  } catch (error) { console.log(error); }
+}
 </script>
 <body>
-<h3>ESP32 Web Oscilloscope ver. 1.30</h3>
+<h3>ESP32 Web Oscilloscope ver. 1.31</h3>
 <div style='float: left; margin-right: 10px'>
 <canvas id='cvs1' width='601' height='401' class='float'></canvas></div>
 <form id='rate0'>Rate: <label id="rate_area">%RATE% %REALDMA%</label>
@@ -598,7 +665,7 @@ async function postreset(button_id) {
 <form id='trigger_lvl' oninput='postform(this.id)'><label>Trigger Level</label>
 <input type="range" name="trig_lvl" min="0" max="199" step="1" value="%TRIGGLEVEL%"></form>
 <div>
-<form id='f_run_hold' onclick='postform(this.id)'>
+<form id='f_run_hold' onchange='postform(this.id)'>
 <label><input type="radio" name="run_hold" value="run">RUN</label>
 <label><input type="radio" name="run_hold" value="hold">HOLD</label>
 </form>
@@ -635,7 +702,7 @@ async function postreset(button_id) {
 </form></div>
 
 <div>
-<form id='f_pwm' onclick='postform(this.id)'>
+<form id='f_pwm' onchange='postform(this.id)'>
 <label>Pulse</label>
 <label><input type="radio" name="pwm_on" value="on">on</label>
 <label><input type="radio" name="pwm_on" value="off">off</label>
@@ -643,7 +710,19 @@ async function postreset(button_id) {
 </div>
 
 <div>
-<form id='f_dds' onclick='postform(this.id)'>
+<label>Pulse Frequency 
+<input type="number" id='mfreq' name="wfreq" size="8" value="%PULSEFREQ%" onchange='post_wfreq()' />
+Hz</label>
+</div>
+
+<div>
+<label>Pulse Duty 
+<input type="number" id='pduty' name="duty" size="4" value="%PULSEDUTY%" onchange='post_duty()' />
+%</label>
+</div>
+
+<div>
+<form id='f_dds' onchange='postform(this.id)'>
 <label>Waveform</label>
 <label><input type="radio" name="dds_on" value="on">on</label>
 <label><input type="radio" name="dds_on" value="off">off</label>
@@ -678,6 +757,12 @@ async function postreset(button_id) {
     <option value='22'>chainsaw</option>
   </select></form></div>
 
+<div>
+<label>Wave Frequency 
+<input type="number" id='pfreq' name="dfreq" size="8" value="%DDSFREQ%" onchange='post_dfreq()' />
+Hz</label>
+</div>
+
 </body>
 </html>
 )=====";
@@ -705,6 +790,7 @@ async function postreset(button_id) {
   html.replace("%RUNHOLD%", Start?"run":"hold");
   html.replace("%PULSEONOFF%", pulse_mode?"on":"off");
   html.replace("%DDSONOFF%", dds_mode?"on":"off");
+  html.replace("%DDSFREQ%", String(dds_freq()));
   if (ch0_mode == MODE_ON) {
     html.replace("%CH1MODE%", "chon");
   } else if (ch0_mode == MODE_INV) {
@@ -721,6 +807,8 @@ async function postreset(button_id) {
   }
   html.replace("%CH1OFFSET%", String((ch0_off * VREF[range0]) / 4096));
   html.replace("%CH2OFFSET%", String((ch1_off * VREF[range1]) / 4096));
+  html.replace("%PULSEDUTY%", String(duty*100.0/256.0, 1));
+  html.replace("%PULSEFREQ%", String(pulse_frq()));
 
   // send the HTML
   server.send(200, "text/html", html);

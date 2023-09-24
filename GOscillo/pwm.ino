@@ -9,6 +9,14 @@ double pulse_frq(void) {      // 4.768Hz <= pulse_frq <= 40MHz
   return(80.0e6 / pow(2, p_range) * count / 256.0);
 }
 
+void set_pulse_frq(float freq) {  // 4.768Hz <= freq <= 40MHz
+  if (freq > 40e6) freq = 40e6;
+  p_range = constrain(int(log(80e6/freq)/log(2)), 1, 16);
+  count = round(256.0 / 80.0e6 * pow(2, p_range) * freq);
+  ledcSetup(LEDC_CHANNEL_0, pulse_frq(), p_range);
+  setduty();
+}
+
 void pulse_init() {
   int divide;
   p_range = constrain(p_range, 1, 16);
