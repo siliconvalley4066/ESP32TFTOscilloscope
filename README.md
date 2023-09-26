@@ -25,5 +25,11 @@ arduinoWebSockets from https://github.com/Links2004/arduinoWebSockets<br>
 
 You need to customize the TFT_espi library by referring to the TFT_espi folder here.
 
+For WEB only display, in case no LCD display is connected, un-comment
+<pre>
+//#define NOLCD
+</pre>
+in the file GOscillo.ino.
+
 Schematics:<br>
 <img src="ESP32TFTGOscillo.png">
