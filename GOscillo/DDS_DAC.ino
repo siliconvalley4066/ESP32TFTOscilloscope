@@ -201,6 +201,7 @@ float dds_freq(void) {
   return frequency;
 }
 
+#ifndef NOLCD
 void disp_dds_freq(void) {
   if (dac_cw_mode) {
     float frequency = RTC_FAST_CLK_FREQ_APPROX * (float) ifreq / 65536.0;
@@ -217,6 +218,7 @@ void disp_dds_freq(void) {
 void disp_dds_wave(void) {
   display.print(Wavename[wave_id]); 
 }
+#endif
 
 void cw_dds_setup() {
   dac_cw_generator_enable();

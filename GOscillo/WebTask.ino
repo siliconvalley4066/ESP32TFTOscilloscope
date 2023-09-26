@@ -1,6 +1,7 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h> // arduinoWebSockets library
+#include <ESPmDNS.h>
 
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
@@ -840,6 +841,10 @@ void setup1(void * pvParameters) {
   Serial.print("WiFi Connected. IP = "); Serial.println(WiFi.localIP());
 //  Serial.print("WiFi Connected. GW = "); Serial.println(WiFi.gatewayIP());
 //  Serial.print("WiFi Connected. DNS = "); Serial.println(WiFi.dnsIP());
+
+  if (MDNS.begin("esp32oscillo")) {
+    Serial.println("MDNS responder started");
+  }
 
   server.on("/", handleRoot);
   server.onNotFound(handleNotFound);

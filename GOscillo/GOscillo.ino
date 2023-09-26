@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.05
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.06
  * The max realtime sampling rates are 10ksps with 2 channels and 20ksps with a channel.
  * In the I2S DMA mode, it can be set up to 500ksps.
  * + Pulse Generator
@@ -12,12 +12,16 @@
  * Copyright (c) 2009, Noriaki Mitsunaga
  */
 
+//#define NOLCD
+
+#ifndef NOLCD
 #include <SPI.h>
 #include "TFT_eSPI.h"
+TFT_eSPI display = TFT_eSPI();
+#endif
+
 #include "driver/adc.h"
 //#include "esp_task_wdt.h"
-
-TFT_eSPI display = TFT_eSPI();
 
 //#define BUTTON5DIR
 #define EEPROM_START 0
@@ -140,11 +144,15 @@ void setup(){
   pinMode(LEFTPIN, INPUT_PULLUP);   // left
   pinMode(34, ANALOG);              // Analog 34 pin for channel 0 ADC1_CHANNEL_6
   pinMode(35, ANALOG);              // Analog 35 pin for channel 1 ADC1_CHANNEL_7
-//  pinMode(LED_BUILTIN, OUTPUT);     // sets the digital pin as output
+#ifdef NOLCD
+  pinMode(LED_BUILTIN, OUTPUT);     // sets the digital pin as output
+#else
   display.init();                    // initialise the library
   display.setRotation(1);
   uint16_t calData[5] = { 368, 3538, 256, 3459, 7 };
   display.setTouch(calData);
+  display.fillScreen(BGCOLOR);
+#endif
 
 //  Serial.begin(115200);
 //  Serial.printf("CORE1 = %d\n", xPortGetCoreID());
@@ -157,7 +165,6 @@ void setup(){
 //  set_default();
   wfft = fft_mode;
   wdds = dds_mode;
-  display.fillScreen(BGCOLOR);
 //  DrawGrid();
 //  DrawText();
 //  display.display();
@@ -172,6 +179,7 @@ void setup(){
   rate_i2s_mode_config();
 }
 
+#ifndef NOLCD
 #ifdef DOT_GRID
 void DrawGrid() {
   int disp_leng;
@@ -214,8 +222,10 @@ void DrawGrid() {
   }
 }
 #endif
+#endif
 
 void DrawText() {
+#ifndef NOLCD
   if (info_mode & 8)
     return;
   if (info_mode & 4) {
@@ -223,6 +233,7 @@ void DrawText() {
   } else {
     display.setTextSize(1); // Small
   }
+#endif
 
 //  if (info_mode && Start) {
   if (info_mode & 3) {
@@ -232,11 +243,14 @@ void DrawText() {
     if (info_mode & 2)
       measure_voltage();
   }
+#ifndef NOLCD
   DrawText_big();
   if (!fft_mode)
     draw_trig_level(GRIDCOLOR); // draw trig_lv mark
+#endif
 }
 
+#ifndef NOLCD
 void draw_trig_level(int color) { // draw trig_lv mark
   int x, y;
 
@@ -337,6 +351,7 @@ void ClearAndDrawDot(int i) {
 #endif
   DrawGrid(i);
 }
+#endif
 
 #define BENDX 3480  // 85% of 4096
 #define BENDY 3072  // 75% of 4096
@@ -432,7 +447,9 @@ void loop() {
   unsigned long auto_time;
 
   timeExec = 100;
-//  digitalWrite(LED_BUILTIN, HIGH);  // GPIO2 is used for touch CS
+#ifdef NOLCD
+  digitalWrite(LED_BUILTIN, HIGH);  // GPIO2 is used for touch CS
+#endif
   if (rate > RATE_DMA) {
     set_trigger_ad();
     auto_time = pow(10, rate / 3);
@@ -480,7 +497,9 @@ void loop() {
     } else {                // dual channel .5ms, 1ms, 2ms, 5ms, 10ms, 20ms sampling
       sample_dual_ms(HREF[rate] / 10);
     }
-//    digitalWrite(LED_BUILTIN, LOW); // GPIO2 is used for touch CS
+#ifdef NOLCD
+    digitalWrite(LED_BUILTIN, LOW); // GPIO2 is used for touch CS
+#endif
     draw_screen();
   } else if (Start) { // 40ms - 400ms sampling
     timeExec = 5000;
@@ -498,7 +517,9 @@ void loop() {
           break;
       }
       if (rate<RATE_ROLL) { // sampling rate has been changed
+#ifndef NOLCD
         display.fillScreen(BGCOLOR);
+#endif
         break;
       }
       st += r;
@@ -517,11 +538,17 @@ void loop() {
       if (ch0_mode == MODE_OFF) payload[0] = -1;
       if (ch1_mode == MODE_OFF) payload[SAMPLES] = -1;
       xTaskNotify(taskHandle, 0, eNoAction);  // notify Websocket server task
+#ifndef NOLCD
       ClearAndDrawDot(i);     
+#endif
     }
+#ifndef NOLCD
     DrawGrid(disp_leng);  // right side grid   
+#endif
     // Serial.println(millis()-st0);
-//    digitalWrite(LED_BUILTIN, LOW); // GPIO2 is used for touch CS
+#ifdef NOLCD
+    digitalWrite(LED_BUILTIN, LOW); // GPIO2 is used for touch CS
+#endif
 //    DrawGrid();
     DrawText();
   } else {
@@ -547,14 +574,18 @@ void draw_screen() {
 //  display.fillScreen(BGCOLOR);
   if (wfft != fft_mode) {
     fft_mode = wfft;
+#ifndef NOLCD
     display.fillScreen(BGCOLOR);
+#endif
   }
   if (fft_mode) {
     DrawText();
     plotFFT();
   } else {
+#ifndef NOLCD
     DrawGrid();
     ClearAndDrawGraph();
+#endif
     DrawText();
     if (ch0_mode == MODE_OFF) payload[0] = -1;
     if (ch1_mode == MODE_OFF) payload[SAMPLES] = -1;
@@ -569,6 +600,7 @@ void measure_frequency() {
   int x1, x2;
   byte y;
   freqDuty();
+#ifndef NOLCD
   display.setTextColor(TXTCOLOR, BGCOLOR);
   if (info_mode & 4) {
     x1 = textINFO, x2 = x1+12;      // Big
@@ -589,6 +621,7 @@ void measure_frequency() {
   if (fft_mode) return;
   TextBG(&y, x2, 7);
   display.print(waveDuty);  display.print('%');
+#endif
 }
 
 void measure_voltage() {
@@ -612,12 +645,14 @@ void measure_voltage() {
   float vavr = VRF * ((dave * 409.6)/ VREF[range0] - ch0_off) / 4096.0;
   float vmax = VRF * advalue(dmax, VREF[range0], ch0_mode, ch0_off) / 4096.0;
   float vmin = VRF * advalue(dmin, VREF[range0], ch0_mode, ch0_off) / 4096.0;
+#ifndef NOLCD
   TextBG(&y, x, 8);
   display.print("max");  display.print(vmax); if (vmax >= 0.0) display.print('V');
   TextBG(&y, x, 8);
   display.print("avr");  display.print(vavr); if (vavr >= 0.0) display.print('V');
   TextBG(&y, x, 8);
   display.print("min");  display.print(vmin); if (vmin >= 0.0) display.print('V');
+#endif
 }
 
 void sample_dual_us(unsigned int r) { // dual channel. r > 67
@@ -711,10 +746,12 @@ void plotFFT() {
   for (int i = 1; i < FFT_N/2; i++) {
     float db = log10(vReal[i]);
     payload[i] = constrain((int)(1024.0 * (db - 1.6)), 0, 4095);
+#ifndef NOLCD
     int dat = constrain((int)(50.0 * (db - 1.6)), 0, ylim);
     display.drawFastVLine(i * 2, ylim - lastplot[i], lastplot[i], BGCOLOR); // erase old
     display.drawFastVLine(i * 2, ylim - dat, dat, CH1COLOR);
     newplot[i] = dat;
+#endif
   }
   draw_scale();
 }
@@ -722,13 +759,16 @@ void plotFFT() {
 void draw_scale() {
   int ylim = 204;
   float fhref, nyquist;
+#ifndef NOLCD
   display.setTextColor(TXTCOLOR);
   display.setCursor(0, ylim); display.print("0Hz"); 
+#endif
   fhref = (float)HREF[rate];
   nyquist = 5.0e6 / fhref; // Nyquist frequency
   long inyquist = nyquist;
   payload[FFT_N/2] = (short) (inyquist / 1000);
   payload[FFT_N/2+1] = (short) (inyquist % 1000);
+#ifndef NOLCD
   if (nyquist > 999.0) {
     nyquist = nyquist / 1000.0;
     if (nyquist > 99.5) {
@@ -746,6 +786,7 @@ void draw_scale() {
     display.setCursor(116, ylim); display.print(nyquist/2,0);
     display.setCursor(238, ylim); display.print(nyquist,0);
   }
+#endif
 }
 
 #ifdef EEPROM_START

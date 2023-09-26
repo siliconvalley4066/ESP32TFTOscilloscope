@@ -69,6 +69,7 @@ void update_frq(int diff) {
 //  ledcWrite(LEDC_CHANNEL_0, ((long)duty * (long)pow(2, p_range)) >> 8);
 }
 
+#ifndef NOLCD
 void disp_pulse_frq(void) {
 //  freq = ledcReadFreq(LEDC_CHANNEL_0);
   double freq = pulse_frq();
@@ -103,6 +104,7 @@ void disp_pulse_dty(void) {
 //  display.print(duty*100.0/256.0, 1); display.print('%');
   display.print(duty*0.390625, 1); display.print("%  ");
 }
+#endif
 
 void pulse_start() {
   pinMode(GPIO_PIN, OUTPUT);

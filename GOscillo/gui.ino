@@ -25,6 +25,7 @@
 #define SEL_DISPSML 24
 #define SEL_DISPOFF 25
 
+#ifndef NOLCD
 void CheckTouch() {
   uint16_t x = 0, y = 0; // To store the touch coordinates
   // Pressed will be set true is there is a valid touch on the screen
@@ -138,6 +139,7 @@ void CheckTouch() {
   }
   saveTimer = 5000;     // set EEPROM save timer to 5 secnd
 }
+#endif
 
 short adjust_offset(uint16_t x, short ch_off, byte range, int dcsw) {
   int val; 
@@ -160,6 +162,7 @@ short adjust_offset(uint16_t x, short ch_off, byte range, int dcsw) {
   return (constrain(val, -8191, 8191));
 }
 
+#ifndef NOLCD
 int touch_diff(uint16_t x) {
   int diff;
   if (x < (LCD_WIDTH / 8))          diff = -4;
@@ -503,6 +506,7 @@ void set_pos_menu(int x, int y, byte sel) {
     display.setTextColor(TFT_WHITE, BGCOLOR);
   }
 }
+#endif
 
 #define BTN_UP    0
 #define BTN_DOWN  10
@@ -524,12 +528,16 @@ void CheckSW() {
     return;
   Millis = ms;
 
+#ifndef NOLCD
   CheckTouch();
+#endif
   if (wrate != 0) {
     updown_rate(wrate);
     wrate = 0;
+    saveTimer = 5000;     // set EEPROM save timer to 5 secnd
   }
 
+#ifndef NOLCD
 #ifdef BUTTON5DIR
   if (digitalRead(DOWNPIN) == LOW && digitalRead(LEFTPIN) == LOW) {
     sw = BTN_RESET; // both button press
@@ -560,6 +568,7 @@ void CheckSW() {
   DrawText();
 //  display.display();
   lastsw = sw;
+#endif
 }
 
 void updown_ch0range(byte sw) {
@@ -589,7 +598,9 @@ void updown_rate(byte sw) {
       rate --;
       rate_i2s_mode_config();
     }
+#ifndef NOLCD
     display.fillScreen(BGCOLOR);
+#endif
   } else if (sw == BTN_LEFT) {  // RATE SLOW
     orate = rate;
     if (rate < RATE_MAX) {
@@ -601,6 +612,7 @@ void updown_rate(byte sw) {
   }
 }
 
+#ifndef NOLCD
 void menu_sw(byte sw) {  
   int diff;
   switch (item) {
@@ -895,3 +907,4 @@ byte sw_accel(byte sw) {
   }
   return (diff);
 }
+#endif
