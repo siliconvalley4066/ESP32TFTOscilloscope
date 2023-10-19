@@ -13,9 +13,23 @@ void sample_i2s(byte ad_ch) {
   int t;
   size_t bytes_read;
 
-  i2s_read(I2S_NUM, cap_buf, NSAMP * 2, &bytes_read, 20);
+// for I2S_CHANNEL_FMT_ALL_LEFT
+//  i2s_read(I2S_NUM, cap_buf, NSAMP * 2, &bytes_read, 20);
+//  for (int i=0; i < NSAMP/2; i++) {
+//    cap_buf[i] = cap_buf[i+i] & 0xfff;  // pick up LEFT data and mask MSBs
+//  }
+
+// for I2S_CHANNEL_FMT_ONLY_LEFT
+  i2s_read(I2S_NUM, cap_buf, NSAMP, &bytes_read, 20);
+// Swap word order to fix ESP32 bug in packing 16bits into 32bits
+  int16_t tmp;
   for (int i=0; i < NSAMP/2; i++) {
-    cap_buf[i] = cap_buf[i+i] & 0xfff;  // pick up LEFT data and mask MSBs
+    if (i&1) {
+      cap_buf[i] = tmp;
+    } else {
+      tmp = cap_buf[i] & 0xfff;
+      cap_buf[i] = cap_buf[i+1] & 0xfff;
+    }
   }
   delay(1);
   t = trigger_point();
@@ -28,7 +42,7 @@ void i2sInit() {
     .mode                 = (i2s_mode_t)(I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_ADC_BUILT_IN),
     .sample_rate          = I2S_SAMPLE_RATE,
     .bits_per_sample      = I2S_BITS_PER_SAMPLE_16BIT,
-    .channel_format       = I2S_CHANNEL_FMT_ALL_LEFT,
+    .channel_format       = I2S_CHANNEL_FMT_ONLY_LEFT,
     .communication_format = I2S_COMM_FORMAT_STAND_I2S,
     .intr_alloc_flags     = ESP_INTR_FLAG_LEVEL1,
     .dma_buf_count        = I2S_BUFFER_COUNT,

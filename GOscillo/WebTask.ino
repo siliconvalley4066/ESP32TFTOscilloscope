@@ -354,6 +354,8 @@ ws.onmessage = function(evt) {
   var pichH = groundH/8;
   const fftsamples = 128;
   const displng = 300;
+  const dotpich = (groundW - 1) / displng;
+  const fftpich = 512 / fftsamples;
   ctx.beginPath();
   ctx.save();
   ctx.strokeStyle = "rgb(128,128,128)";
@@ -383,11 +385,11 @@ ws.onmessage = function(evt) {
   ctx.save();
   ctx.beginPath();
   ctx.strokeStyle = "rgb(0,255,0)";
-  if (datas.length == (fftsamples + 2)) {
+  if (datas.length == (fftsamples + 4)) {
     var base = groundY0-cnstH*512;
     for (var i = 1; i < fftsamples; i++){
-      ctx.moveTo(groundX0+4*i, base);
-      ctx.lineTo(groundX0+4*i, base-cnstH*datas[i]);
+      ctx.moveTo(groundX0+fftpich*i, base);
+      ctx.lineTo(groundX0+fftpich*i, base-cnstH*datas[i]);
     }
     ctx.stroke();
     ctx.strokeStyle = "rgb(192,192,192)";
@@ -413,22 +415,30 @@ ws.onmessage = function(evt) {
       ctx.fillText(String(nyquist)+"Hz", 8*64, base + 10);
     else
       ctx.fillText(String(nyquist/1000)+"kHz", 8*64, base + 10);
+    var frequency = (10000 * datas[fftsamples+2] + datas[fftsamples+3]) / 100.0;
+    document.getElementById("ch1_freq").textContent = String(frequency)+"Hz";
   }
   if (datas.length >= displng && datas[0] >= 0) {
     ctx.moveTo(groundX0, groundY0-cnstH*datas[0]);
     for (var i = 1; i < displng; i++){
-      ctx.lineTo(groundX0+2*i, groundY0-cnstH*datas[i]);
+      ctx.lineTo(groundX0+dotpich*i, groundY0-cnstH*datas[i]);
+    }
+    if (datas.length == (displng + 2)) {
+      var frequency = (10000 * datas[displng] + datas[displng+1]) / 100.0;
+      document.getElementById("ch1_freq").textContent = String(frequency)+"Hz";
     }
   }
   ctx.stroke();
-  if (datas.length == (displng+displng) && datas[displng] >= 0) {
+  if (datas.length >= (displng+displng) && datas[displng] >= 0) {
     ctx.beginPath();
     ctx.strokeStyle = "rgb(255,255,0)";
     ctx.moveTo(groundX0, groundY0-cnstH*datas[displng]);
     for (var i = 1; i < displng; i++){
-      ctx.lineTo(groundX0+2*i, groundY0-cnstH*datas[i+displng]);
+      ctx.lineTo(groundX0+dotpich*i, groundY0-cnstH*datas[i+displng]);
     }
     ctx.stroke();
+    var frequency = (10000 * datas[displng+displng] + datas[displng+displng+1]) / 100.0;
+    document.getElementById("ch1_freq").textContent = String(frequency)+"Hz";
   }
   ctx.restore();
 };
@@ -631,7 +641,7 @@ async function post_duty() {
 }
 </script>
 <body>
-<h3>ESP32 Web Oscilloscope ver. 1.31</h3>
+<h3>ESP32 Web Oscilloscope ver. 1.32</h3>
 <div style='float: left; margin-right: 10px'>
 <canvas id='cvs1' width='601' height='401' class='float'></canvas></div>
 <form id='rate0'>Rate: <label id="rate_area">%RATE% %REALDMA%</label>
@@ -764,6 +774,8 @@ Hz</label>
 Hz</label>
 </div>
 
+<label>CH1 frequency: </label><label id="ch1_freq"></label>
+
 </body>
 </html>
 )=====";
@@ -854,11 +866,17 @@ void setup1(void * pvParameters) {
     server.handleClient();
     if (xTaskNotifyWait(0, 0, NULL, pdMS_TO_TICKS(0)) == pdTRUE) {
       if (rate < RATE_ROLL && fft_mode) {
-        webSocket.broadcastBIN((byte *) payload, FFT_N + 4);
+        payload[FFT_N/2+2] = (short) ((long)(100.0*waveFreq) / 10000);
+        payload[FFT_N/2+3] = (short) ((long)(100.0*waveFreq) % 10000);
+        webSocket.broadcastBIN((byte *) payload, FFT_N + 8);
       } else if (rate >= RATE_DUAL) {
-        webSocket.broadcastBIN((byte *) payload, SAMPLES * 4);
+        payload[SAMPLES*2] = (short) ((long)(100.0*waveFreq) / 10000);
+        payload[SAMPLES*2+1] = (short) ((long)(100.0*waveFreq) % 10000);
+        webSocket.broadcastBIN((byte *) payload, SAMPLES * 4 + 4);
       } else {
-        webSocket.broadcastBIN((byte *) payload, SAMPLES * 2);
+        payload[SAMPLES] = (short) ((long)(100.0*waveFreq) / 10000);
+        payload[SAMPLES+1] = (short) ((long)(100.0*waveFreq) % 10000);
+        webSocket.broadcastBIN((byte *) payload, SAMPLES * 2 + 4);
       }
     }
     webSocket.loop();
