@@ -775,7 +775,6 @@ Hz</label>
 </div>
 
 <label>CH1 frequency: </label><label id="ch1_freq"></label>
-
 </body>
 </html>
 )=====";
@@ -866,16 +865,16 @@ void setup1(void * pvParameters) {
     server.handleClient();
     if (xTaskNotifyWait(0, 0, NULL, pdMS_TO_TICKS(0)) == pdTRUE) {
       if (rate < RATE_ROLL && fft_mode) {
-        payload[FFT_N/2+2] = (short) ((long)(100.0*waveFreq) / 10000);
-        payload[FFT_N/2+3] = (short) ((long)(100.0*waveFreq) % 10000);
+        payload[FFT_N/2+2] = (short) ((long)(100.0*waveFreq[0]) / 10000);
+        payload[FFT_N/2+3] = (short) ((long)(100.0*waveFreq[0]) % 10000);
         webSocket.broadcastBIN((byte *) payload, FFT_N + 8);
-      } else if (rate >= RATE_DUAL) {
-        payload[SAMPLES*2] = (short) ((long)(100.0*waveFreq) / 10000);
-        payload[SAMPLES*2+1] = (short) ((long)(100.0*waveFreq) % 10000);
+      } else if (rate >= RATE_DUAL || (ch0_mode == MODE_OFF && ch1_mode != MODE_OFF)) {
+        payload[SAMPLES*2] = (short) ((long)(100.0*waveFreq[0]) / 10000);
+        payload[SAMPLES*2+1] = (short) ((long)(100.0*waveFreq[0]) % 10000);
         webSocket.broadcastBIN((byte *) payload, SAMPLES * 4 + 4);
       } else {
-        payload[SAMPLES] = (short) ((long)(100.0*waveFreq) / 10000);
-        payload[SAMPLES+1] = (short) ((long)(100.0*waveFreq) % 10000);
+        payload[SAMPLES] = (short) ((long)(100.0*waveFreq[0]) / 10000);
+        payload[SAMPLES+1] = (short) ((long)(100.0*waveFreq[0]) % 10000);
         webSocket.broadcastBIN((byte *) payload, SAMPLES * 2 + 4);
       }
     }

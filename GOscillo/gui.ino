@@ -18,12 +18,13 @@
 #define SEL_DDS     17
 #define SEL_DDSWAVE 18
 #define SEL_DDSFREQ 19
-#define SEL_DISP    20
-#define SEL_DISPFRQ 21
-#define SEL_DISPVOL 22
-#define SEL_DISPLRG 23
-#define SEL_DISPSML 24
-#define SEL_DISPOFF 25
+#define SEL_FCNT    20
+#define SEL_DISP    21
+#define SEL_DISPFRQ 22
+#define SEL_DISPVOL 23
+#define SEL_DISPLRG 24
+#define SEL_DISPSML 25
+#define SEL_DISPOFF 26
 
 #ifndef NOLCD
 void CheckTouch() {
@@ -40,6 +41,7 @@ void CheckTouch() {
         display.fillScreen(BGCOLOR);
       } else if (ch0_mode == MODE_OFF) {
         ch0_mode = MODE_ON;
+        display.fillScreen(BGCOLOR);
       }
     } else if (x < 120) {     // CH1 voltage range
       item = (item != SEL_RANGE1) ? SEL_RANGE1 : SEL_NONE;
@@ -54,8 +56,8 @@ void CheckTouch() {
         item = SEL_NONE;
     } else if (x < 300) {     // Function
       item = (item != SEL_FUNC) ? SEL_FUNC : SEL_NONE;
-      clear_bottom_text();    // clear bottom text area
     }
+    clear_bottom_text();    // clear bottom text area
   } else if (y > 220) {
     if (item < SEL_FUNC)
       low_touch_base(x);
@@ -257,27 +259,27 @@ void low_touch_func(uint16_t x) {
     }
   } else if (item >= SEL_DISP && item <= SEL_DISPOFF) {
     if (x < 60) {         // SEL_DISPFRQ
-      info_mode ^= 1;
+      info_mode = (info_mode & 0x3c) | ((info_mode + 1) & 0x3);
       clear_big_text();
     } else if (x < 120) { // SEL_DISPVOL
-      info_mode ^= 2;
+      info_mode = (info_mode & 0x33) | ((info_mode + 4) & 0xc);
       clear_big_text();
     } else if (x < 180) { // SEL_DISPLRG;
-      info_mode |= 4;
+      info_mode |= INFO_BIG;
       clear_text();
     } else if (x < 240) { // SEL_DISPSML;
-      info_mode &= ~4;
+      info_mode &= ~INFO_BIG;
       clear_text();
     } else if (x < 300) { // SEL_DISPOFF;
-      info_mode ^= 8;
+      info_mode ^= INFO_OFF;
       clear_text();
     }
   }
 }
 
 void disp_ch0(int x, int y) {
-  int color = (ch0_mode == MODE_OFF) ? TFT_DARKGREY : CH1COLOR;
-  int bg = (item == SEL_CH1) ? TFT_CYAN : BGCOLOR;
+  int color = (ch0_mode == MODE_OFF) ? OFFCOLOR : CH1COLOR;
+  int bg = (item == SEL_CH1) ? HIGHCOLOR : BGCOLOR;
   display.setCursor(x, y);
   display.setTextColor(color, bg);
   display.print("CH1");
@@ -285,8 +287,8 @@ void disp_ch0(int x, int y) {
 }
 
 void disp_ch1(int x, int y) {
-  int color = (ch1_mode == MODE_OFF || rate < RATE_DUAL) ? TFT_DARKGREY : CH2COLOR;
-  int bg = (item == SEL_CH2) ? TFT_CYAN : BGCOLOR;
+  int color = (ch1_mode == MODE_OFF || (rate < RATE_DUAL && ch0_mode != MODE_OFF)) ? OFFCOLOR : CH2COLOR;
+  int bg = (item == SEL_CH2) ? HIGHCOLOR : BGCOLOR;
   display.setCursor(x, y);
   display.setTextColor(color, bg);
   display.print("CH2");
@@ -296,11 +298,11 @@ void disp_ch1(int x, int y) {
 void disp_ch0_range() {
   int color;
   if (item == SEL_RANGE1) {
-    color = TFT_CYAN;
+    color = HIGHCOLOR;
   } else if (ch0_mode == MODE_OFF) {
-    color = TFT_DARKGREY;
+    color = OFFCOLOR;
   } else {
-    color = TFT_WHITE;
+    color = TXTCOLOR;
   }
   display.setTextColor(color, BGCOLOR);
   display.print(Ranges[range0]);
@@ -309,11 +311,11 @@ void disp_ch0_range() {
 void disp_ch1_range() {
   int color;
   if (item == SEL_RANGE2) {
-    color = TFT_CYAN;
+    color = HIGHCOLOR;
   } else if (ch1_mode == MODE_OFF || rate < RATE_DUAL) {
-    color = TFT_DARKGREY;
+    color = OFFCOLOR;
   } else {
-    color = TFT_WHITE;
+    color = TXTCOLOR;
   }
   display.setTextColor(color, BGCOLOR);
   display.print(Ranges[range1]);
@@ -343,7 +345,7 @@ void disp_trig_mode() {
 
 void TextBG(byte *y, int x, byte chrs) {
   int yinc, wid, hi;
-  if (info_mode & 4) {
+  if (info_mode & INFO_BIG) {
     yinc = 20, wid = 12, hi = 16;
   } else {
     yinc = 10, wid = 6, hi = 8;
@@ -359,8 +361,8 @@ void DrawText_big() {
   char str[5];
   byte y;
 
-  if (!(info_mode & 8)) {
-    if (info_mode & 4) {
+  if (!(info_mode & INFO_OFF)) {
+    if (info_mode & INFO_BIG) {
       display.setTextSize(2);
       y = BOTTOM_LINE;
     } else {
@@ -389,13 +391,13 @@ void DrawText_big() {
     set_menu_color(SEL_TGLVL);
     display.print("TGLV");
   } else {
-    display.setTextColor(TFT_DARKGREY, BGCOLOR);
+    display.setTextColor(OFFCOLOR, BGCOLOR);
     display.print("VPOS");
   }
   display.setCursor(252, 1);  // Function
   set_menu_color(SEL_FUNC);
   if (Start == false) {
-    display.setTextColor(TFT_RED, BGCOLOR);
+    display.setTextColor(REDCOLOR, BGCOLOR);
     display.print("HALT");
   } else {
     display.print("FUNC");
@@ -414,7 +416,7 @@ void DrawText_big() {
     set_pos_menu(252, y, SEL_DISPOFF);  // Off
     display.print("OFF  ");
   } else if (SEL_DDS <= item && item <= SEL_DDSFREQ) {
-    set_pos_color(1, y, TFT_WHITE);     // DDS
+    set_pos_color(1, y, TXTCOLOR);     // DDS
     display.print("DDS  ");
     set_pos_menu(60, y, SEL_DDS);       // ON/OFF
     if (dds_mode == true) {
@@ -430,7 +432,7 @@ void DrawText_big() {
     disp_dds_freq();
     display.print("   ");
   } else if (SEL_PWM <= item && item <= SEL_PWMDUTY) {
-    set_pos_color(1, y, TFT_WHITE); // PWM
+    set_pos_color(1, y, TXTCOLOR); // PWM
     display.print("PWM  ");
     set_pos_menu(60, y, SEL_PWM);       // ON/OFF
     if (pulse_mode == true) {
@@ -451,14 +453,14 @@ void DrawText_big() {
     display.print("DDS  ");
     set_pos_menu(192, y, SEL_DISP); // DISP
     display.print("DISP ");
-    set_pos_color(252, y, TFT_WHITE); // FCNT
+    set_pos_menu(252, y, SEL_FCNT); // FCNT
     display.print("     ");
   } else {
     disp_ch1(1, y);         // CH2
     display_ac_inv(y, CH1DCSW, ch1_mode);
     display.setCursor(60, y);   // CH2 range
     disp_ch1_range();
-    set_pos_color(132, y, TFT_WHITE); // Trigger souce
+    set_pos_color(132, y, TXTCOLOR); // Trigger souce
     disp_trig_source(); 
     display.setCursor(192, y);  // Trigger edge
     disp_trig_edge();
@@ -469,7 +471,7 @@ void DrawText_big() {
 
 void display_ac_inv(byte y, byte sw, byte ch_mode) {
   byte h, x;
-  if (info_mode & 4) {
+  if (info_mode & INFO_BIG) {
     h = 15, x = 37;     // big font
   } else {
     h = 7, x = 18;
@@ -477,7 +479,7 @@ void display_ac_inv(byte y, byte sw, byte ch_mode) {
   display.fillRect(x, y, 12, h, BGCOLOR); // clear AC/DC Inv
   if (digitalRead(sw) == LOW) {
     display.print('~');
-    if (info_mode & 4) {        // big font
+    if (info_mode & INFO_BIG) {        // big font
       display.setCursor(37, y); // back space
     }
   }
@@ -492,18 +494,18 @@ void set_pos_color(int x, int y, int color) {
 
 void set_menu_color(byte sel) {
   if (item == sel) {
-    display.setTextColor(TFT_CYAN, BGCOLOR);
+    display.setTextColor(HIGHCOLOR, BGCOLOR);
   } else {
-    display.setTextColor(TFT_WHITE, BGCOLOR);
+    display.setTextColor(TXTCOLOR, BGCOLOR);
   }
 }
 
 void set_pos_menu(int x, int y, byte sel) {
   display.setCursor(x, y);
   if (item == sel) {
-    display.setTextColor(TFT_CYAN, BGCOLOR);
+    display.setTextColor(HIGHCOLOR, BGCOLOR);
   } else {
-    display.setTextColor(TFT_WHITE, BGCOLOR);
+    display.setTextColor(TXTCOLOR, BGCOLOR);
   }
 }
 #endif
@@ -814,44 +816,46 @@ void menu_sw(byte sw) {
     break;
   case SEL_DISPFRQ: // Frequency and Duty display
     if (sw == BTN_RIGHT) {        // ON
-      info_mode |= 1;
+      info_mode = (info_mode & 0x3c) | ((info_mode + 1) & 0x3);
+      clear_big_text();                             // clear big text area
     } else if (sw == BTN_LEFT) {  // OFF
-      info_mode &= ~1;
+      info_mode = (info_mode & 0x3c) | ((info_mode - 1) & 0x3);
       clear_big_text();                             // clear big text area
     }
     break;
   case SEL_DISPVOL: // Voltage display
     if (sw == BTN_RIGHT) {        // ON
-      info_mode |= 2;
+      info_mode = (info_mode & 0x33) | ((info_mode + 4) & 0xc);
+      clear_big_text();                             // clear big text area
     } else if (sw == BTN_LEFT) {  // OFF
-      info_mode &= ~2;
+      info_mode = (info_mode & 0x33) | ((info_mode - 4) & 0xc);
       clear_big_text();                             // clear big text area
     }
     break;
   case SEL_DISPLRG: // Large Font
     if (sw == BTN_RIGHT) {        // ON
-      info_mode |= 4;
+      info_mode |= INFO_BIG;
       clear_big_text();                             // clear big text area
     } else if (sw == BTN_LEFT) {  // OFF
-      info_mode &= ~4;
+      info_mode &= ~INFO_BIG;
       clear_text();
     }
     break;
   case SEL_DISPSML: // Small Font
     if (sw == BTN_RIGHT) {        // ON
-      info_mode &= ~4;
+      info_mode &= ~INFO_BIG;
       clear_text();
     } else if (sw == BTN_LEFT) {  // OFF
-      info_mode |= 4;
+      info_mode |= INFO_BIG;
       clear_big_text();                             // clear big text area
     }
     break;
   case SEL_DISPOFF: // Text Display Off
     if (sw == BTN_RIGHT) {        // OFF
-      info_mode |= 8;
+      info_mode |= INFO_OFF;
       clear_text();
     } else if (sw == BTN_LEFT) {  // ON
-      info_mode &= ~8;
+      info_mode &= ~INFO_OFF;
     }
     break;
   }
@@ -859,7 +863,7 @@ void menu_sw(byte sw) {
 }
 
 void clear_big_text() {
-  display.fillRect(214, 22, 96, 100, BGCOLOR);  // clear big text area
+  display.fillRect(214, 22, 96, 200, BGCOLOR);  // clear big text area
 }
 
 void clear_text() {

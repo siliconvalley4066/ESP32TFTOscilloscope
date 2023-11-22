@@ -5,7 +5,7 @@ byte duty = 128;      // duty ratio = duty/256
 byte p_range = 16;    // bit_num 1 - 16
 unsigned short count;   // rate 256/256 - 1/256
 
-double pulse_frq(void) {      // 4.768Hz <= pulse_frq <= 40MHz
+double pulse_frq(void) {  // 4.768Hz <= pulse_frq <= 40MHz
   return(80.0e6 / pow(2, p_range) * count / 256.0);
 }
 

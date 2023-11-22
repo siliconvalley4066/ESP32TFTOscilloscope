@@ -7,38 +7,43 @@
 //int dataAve;                   // 10 x average value (use 10x value to keep accuracy. so, max=10230)
 //int dataRms;                   // 10x rms. value
 
-void dataAnalize() {                       // 波形の分析 get various information from wave form
+uint16_t *waveBuff;
+
+void dataAnalize(int ch) {    // 波形の分析 get various information from wave form
   long d;
   long sum = 0;
-  byte *waveBuff = data[sample+0];
 
+  if (ch == 0) 
+    waveBuff = cap_buf;
+  else
+    waveBuff = cap_buf1;
   // search max and min value
-  dataMin = 255;                          // min value initialize to big number
-  dataMax = 0;                             // max value initialize to small number
+  dataMin[ch] = 4095;                     // min value initialize to big number
+  dataMax[ch] = 0;                        // max value initialize to small number
   for (int i = 0; i < SAMPLES; i++) {     // serach max min value
     d = waveBuff[i];
     sum = sum + d;
-    if (d < dataMin) {                     // update min
-      dataMin = d;
+    if (d < dataMin[ch]) {                // update min
+      dataMin[ch] = d;
     }
-    if (d > dataMax) {                     // updata max
-      dataMax = d;
+    if (d > dataMax[ch]) {                // updata max
+      dataMax[ch] = d;
     }
   }
 
   // calculate average
-  dataAve = (10 * sum + (SAMPLES / 2)) / SAMPLES;  // Average value calculation (calculated by 10 times to improve accuracy)
+  dataAve[ch] = (10 * sum + (SAMPLES / 2)) / SAMPLES; // Average value calculation (calculated by 10 times to improve accuracy)
 
   // 実効値の計算 rms value calc.
 //  sum = 0;
-//  for (int i = 0; i < SAMPLES; i++) {     // バッファ全体に対し to all buffer
-//    d = waveBuff[i] - (dataAve + 5) / 10;  // オーバーフロー防止のため生の値で計算(10倍しない）
-//    sum += d * d;                          // 二乗和を積分
+//  for (int i = 0; i < SAMPLES; i++) {         // バッファ全体に対し to all buffer
+//    d = waveBuff[i] - (dataAve[ch] + 5) / 10; // オーバーフロー防止のため生の値で計算(10倍しない）
+//    sum += d * d;                             // 二乗和を積分
 //  }
 //  dataRms = sqrt(sum / SAMPLES);          // 実効値の10倍の値 get rms value
 }
 
-void freqDuty() {                               // 周波数とデューティ比を求める detect frequency and duty cycle value from waveform data
+void freqDuty(int ch) {                         // 周波数とデューティ比を求める detect frequency and duty cycle value from waveform data
   int swingCenter;                              // center of wave (half of p-p)
   float p0 = 0;                                 // 1-st posi edge
   float p1 = 0;                                 // total length of cycles
@@ -56,7 +61,7 @@ void freqDuty() {                               // 周波数とデューティ�
   //  boolean b0Detected = false;
   boolean posiSerch = true;                     // true when serching posi edge
 
-  swingCenter = (3 * (dataMin + dataMax)) / 2;  // calculate wave center value
+  swingCenter = (3 * (dataMin[ch] + dataMax[ch])) / 2;  // calculate wave center value
 
   for (int i = 1; i < SAMPLES - 2; i++) {      // scan all over the buffer
     if (posiSerch == true) {   // posi slope (frequency serch)
@@ -94,12 +99,11 @@ void freqDuty() {                               // 周波数とデューティ�
 
   float fhref;
   fhref = (float) HREF[rate];
-  waveFreq = 10.0e6 / (fhref * pPeriod); // frequency
-  waveDuty = 100.0 * pWidth / pPeriod;                                        // duty ratio
+  waveFreq[ch] = 10.0e6 / (fhref * pPeriod);  // frequency
+  waveDuty[ch] = 100.0 * pWidth / pPeriod;    // duty ratio
 }
 
 int sum3(int k) {       // Sum of before and after and own value
-  byte *waveBuff = data[sample+0];
   int m = waveBuff[k - 1] + waveBuff[k] + waveBuff[k + 1];
   return m;
 }
