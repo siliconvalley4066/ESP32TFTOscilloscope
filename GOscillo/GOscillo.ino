@@ -1,7 +1,7 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.08
- * The max realtime sampling rates are 10ksps with 2 channels and 20ksps with a channel.
- * In the I2S DMA mode, it can be set up to 500ksps.
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.09
+ * The max software loop sampling rates are 10ksps with 2 channels and 20ksps with a channel.
+ * In the I2S DMA mode, it can be set up to 250ksps.
  * + Pulse Generator
  * + PWM DDS Function Generator (23 waveforms)
  * Copyright (c) 2023, Siliconvalley4066
@@ -30,7 +30,9 @@ TFT_eSPI display = TFT_eSPI();
 #endif
 #include "arduinoFFT.h"
 #define FFT_N 256
-arduinoFFT FFT = arduinoFFT();  // Create FFT object
+double vReal[FFT_N]; // Real part array, actually float type
+double vImag[FFT_N]; // Imaginary part array
+ArduinoFFT<double> FFT = ArduinoFFT<double>(vReal, vImag, FFT_N, 1.0);  // Create FFT object
 
 float waveFreq[2];             // frequency (Hz)
 float waveDuty[2];             // duty ratio (%)
@@ -81,9 +83,10 @@ const int TRIG_E_DN = 1;
 #define RATE_DMA 5
 #define RATE_DUAL 7
 #define RATE_ROLL 15
+#define RATE_MAG 1
 #define ITEM_MAX 28
-const char Rates[RATE_NUM][5] PROGMEM = {"50us", "100u", "250u", "333u", "500u", " 1ms", "1.3m", " 2ms", " 5ms", "10ms", "20ms", "50ms", "100m", "200m", "0.5s", " 1s ", " 2s ", " 5s ", " 10s"};
-const unsigned long HREF[] PROGMEM = {20, 40, 100, 133, 200, 400, 500, 800, 2000, 4000, 8000, 20000, 40000, 80000, 200000, 400000, 800000, 2000000, 4000000};
+const char Rates[RATE_NUM][5] PROGMEM = {"10us", "20us", "100u", "200u", "500u", " 1ms", "1.3m", " 2ms", " 5ms", "10ms", "20ms", "50ms", "100m", "200m", "0.5s", " 1s ", " 2s ", " 5s ", " 10s"};
+const unsigned long HREF[] PROGMEM = {40, 40, 40, 80, 200, 400, 500, 800, 2000, 4000, 8000, 20000, 40000, 80000, 200000, 400000, 800000, 2000000, 4000000};
 #define RANGE_MIN 0
 #define RANGE_MAX 4
 #define VRF 3.3
@@ -387,8 +390,9 @@ void scaleDataArray(byte ad_ch, int trig_point)
 {
   byte *pdata, ch_mode, range;
   short ch_off;
-  uint16_t *idata, *qdata;
+  uint16_t *idata, *qdata, *rdata;
   long a, b;
+  int ch;
 
   if (ad_ch == ad_ch1) {
     ch_off = ch1_off;
@@ -396,14 +400,16 @@ void scaleDataArray(byte ad_ch, int trig_point)
     range = range1;
     pdata = data[sample+1];
     idata = &cap_buf1[trig_point];
-    qdata = payload+SAMPLES;
+    qdata = rdata = payload+SAMPLES;
+    ch = 1;
   } else {
     ch_off = ch0_off;
     ch_mode = ch0_mode;
     range = range0;
     pdata = data[sample+0];
     idata = &cap_buf[trig_point];
-    qdata = payload;
+    qdata = rdata = payload;
+    ch = 0;
   }
   for (int i = 0; i < SAMPLES; i++) {
     *idata = adc_linearlize(*idata);
@@ -419,6 +425,16 @@ void scaleDataArray(byte ad_ch, int trig_point)
     if (ch_mode == MODE_INV)
       b = 4095 - b;
     *qdata++ = (int16_t) b;
+  }
+  if (rate == 0) {
+    mag(data[sample+ch], 10); // x10 magnification for display
+  } else if (rate == 1) {
+    mag(data[sample+ch], 5);  // x5 magnification for display
+  }
+  if (rate == 0) {
+    mag(rdata, 10);           // x10 magnification for WEB
+  } else if (rate == 1) {
+    mag(rdata, 5);            // x5 magnification for WEB
   }
 }
 
@@ -750,9 +766,6 @@ void sample_200us(unsigned int r) { // adc1_get_raw() with timing, channel 0 or 
   delay(1);
 }
 
-double vReal[FFT_N]; // Real part array, actually float type
-double vImag[FFT_N]; // Imaginary part array
-
 void plotFFT() {
   byte *lastplot, *newplot;
   int ylim = 200;
@@ -762,10 +775,10 @@ void plotFFT() {
     vReal[i] = cap_buf[i];
     vImag[i] = 0.0;
   }
-  FFT.DCRemoval(vReal, FFT_N);
-  FFT.Windowing(vReal, FFT_N, FFT_WIN_TYP_HANN, FFT_FORWARD); // Weigh data
-  FFT.Compute(vReal, vImag, FFT_N, FFT_FORWARD);          // Compute FFT
-  FFT.ComplexToMagnitude(vReal, vImag, FFT_N);            // Compute magnitudes
+  FFT.dcRemoval();
+  FFT.windowing(FFTWindow::Hann, FFTDirection::Forward);  // Weigh data
+  FFT.compute(FFTDirection::Forward);                     // Compute FFT
+  FFT.complexToMagnitude();                               // Compute magnitudes
   newplot = data[sample];
   lastplot = data[clear];
   payload[0] = 0;
@@ -789,7 +802,7 @@ void draw_scale() {
   display.setTextColor(TXTCOLOR);
   display.setCursor(0, ylim); display.print("0Hz"); 
 #endif
-  fhref = (float)HREF[rate];
+  fhref = freqhref();
   nyquist = 5.0e6 / fhref; // Nyquist frequency
   long inyquist = nyquist;
   payload[FFT_N/2] = (short) (inyquist / 1000);
@@ -813,6 +826,10 @@ void draw_scale() {
     display.setCursor(238, ylim); display.print(nyquist,0);
   }
 #endif
+}
+
+float freqhref() {
+  return (float) HREF[rate];
 }
 
 #ifdef EEPROM_START

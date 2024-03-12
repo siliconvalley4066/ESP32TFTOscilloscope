@@ -96,9 +96,9 @@ void freqDuty(int ch) {                         // 周波数とデューティ�
     pPeriod = 1.0e+37;  // set huge period to get 0Hz
     pWidth  = 0;        // pulse width
   }
+  if (pWidth > pPeriod) pWidth = pPeriod;
 
-  float fhref;
-  fhref = (float) HREF[rate];
+  float fhref = freqhref();
   waveFreq[ch] = 10.0e6 / (fhref * pPeriod);  // frequency
   waveDuty[ch] = 100.0 * pWidth / pPeriod;    // duty ratio
 }
