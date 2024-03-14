@@ -666,6 +666,10 @@ void measure_voltage(int ch) {
   int x;
   byte y;
   if (fft_mode) return;
+  float vavr = VRF * dataAve[ch] / 40950.0;
+  float vmax = VRF * dataMax[ch] / 4095.0;
+  float vmin = VRF * dataMin[ch] / 4095.0;
+#ifndef NOLCD
   if (info_mode & INFO_BIG) {
     x = textINFO, y = 62;       // Big
   } else {
@@ -677,10 +681,6 @@ void measure_voltage(int ch) {
     y += 100;
     display.setTextColor(CH2COLOR, BGCOLOR);
   }
-  float vavr = VRF * dataAve[ch] / 40950.0;
-  float vmax = VRF * dataMax[ch] / 4095.0;
-  float vmin = VRF * dataMin[ch] / 4095.0;
-#ifndef NOLCD
   TextBG(&y, x, 8);
   display.print("max");  display.print(vmax); if (vmax >= 0.0) display.print('V');
   TextBG(&y, x, 8);
