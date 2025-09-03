@@ -3,6 +3,10 @@ ESP32 Oscilloscope for 320x240 TFT LCD and wireless WEB display
 
 <img src="ESP32WEBLCD.png">
 
+Warning!!!
+Use old esp32 by Espressif Systems version 2.0.17. 
+New version 3.0 and later does NOT support backward compatibility.
+
 This displays an oscilloscope screen both on a 320x240 TFT LCD and also on the WEB page simultaneusly.
 The settings are controled on the touch screen of the TFT LCD and also on the WEB page.
 You can view the oscilloscope screen on the WEB browser of the PC or the tablet or the smartphone.
