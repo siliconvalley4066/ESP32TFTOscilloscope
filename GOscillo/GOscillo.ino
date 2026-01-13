@@ -1,10 +1,11 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.09
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.10
+ * for esp32 by Espressif Systems version 3.3.5
  * The max software loop sampling rates are 10ksps with 2 channels and 20ksps with a channel.
  * In the I2S DMA mode, it can be set up to 250ksps.
  * + Pulse Generator
  * + PWM DDS Function Generator (23 waveforms)
- * Copyright (c) 2023, Siliconvalley4066
+ * Copyright (c) 2023,2024,2026 Siliconvalley4066
  */
 /*
  * Arduino Oscilloscope using a graphic LCD
@@ -15,6 +16,7 @@
 //#define NOLCD
 
 #ifndef NOLCD
+#include <FS.h>
 #include <SPI.h>
 #include "TFT_eSPI.h"
 TFT_eSPI display = TFT_eSPI();

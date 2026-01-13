@@ -40,6 +40,7 @@ volatile unsigned long phaccu;   // pahse accumulator
 volatile unsigned long tword_m;  // dds tuning word m
 volatile unsigned char wavebuf[256];
 hw_timer_t * timer = NULL;
+void IRAM_ATTR onTimer();
 
 void dds_setup_init() {
   dac_output_enable(DAC_CHANNEL_1);
@@ -61,7 +62,8 @@ void pwm_dds_setup() {
     wp = (unsigned char *) wavetable[wave_id];
     memcpy((void*)wavebuf, wp, 256);
   }
-  timerAlarmEnable(timer);
+//  timerAttachInterrupt(timer, &onTimer);
+  timerStart(timer);
 }
 
 void dds_close() {
@@ -114,16 +116,15 @@ void IRAM_ATTR onTimer() {
 // timer setup
 // 80000000/1000000*200 = 5.00 kHz clock
 void Setup_timer() {
-  timer = timerBegin(3, getApbFrequency()/1000000*200, true);
-  timerAttachInterrupt(timer, &onTimer, true);
-  timerAlarmWrite(timer, 1, true);
-  timerAlarmEnable(timer);
+  timer = timerBegin(5000);
+  timerAttachInterrupt(timer, &onTimer);
+  timerAlarm(timer, 1, true, 0);
 }
 
 void Close_timer() {
-  timerAlarmDisable(timer);
-//  timerEnd(timer);
-//  timer = NULL;
+  timerDetachInterrupt(timer);
+  timerEnd(timer);
+  timer = NULL;
 }
 
 void update_ifrq(long diff) {

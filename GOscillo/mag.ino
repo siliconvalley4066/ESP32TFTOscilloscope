@@ -3,7 +3,7 @@
    Copyright (c) 2024, Siliconvalley4066
 */
 
-// line intarpolation
+// line interpolation
 //const int16_t line40[40] = {4096, 3686, 3277, 2867, 2458, 2048, 1638, 1229, 819, 410,
 //                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 //                            0, 0, 0, 0, 0, 0, 0, 0, 0, 0};

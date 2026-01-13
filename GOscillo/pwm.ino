@@ -1,4 +1,3 @@
-#define LEDC_CHANNEL_0 0 //channel max 15
 #define GPIO_PIN 16 // should not assign GPIO #36 throough #39
 
 byte duty = 128;      // duty ratio = duty/256
@@ -13,7 +12,7 @@ void set_pulse_frq(float freq) {  // 4.768Hz <= freq <= 40MHz
   if (freq > 40e6) freq = 40e6;
   p_range = constrain(int(log(80e6/freq)/log(2)), 1, 16);
   count = round(256.0 / 80.0e6 * pow(2, p_range) * freq);
-  ledcSetup(LEDC_CHANNEL_0, pulse_frq(), p_range);
+  ledcChangeFrequency(GPIO_PIN, pulse_frq(), p_range);
   setduty();
 }
 
@@ -25,10 +24,9 @@ void pulse_init() {
   else
     count = constrain(count, 1, 256);
   pinMode(GPIO_PIN, OUTPUT);
-  ledcSetup(LEDC_CHANNEL_0, pulse_frq(), p_range);
-  ledcAttachPin(GPIO_PIN, LEDC_CHANNEL_0);
+  ledcSetClockSource((ledc_clk_cfg_t) LEDC_APB_CLK);
+  ledcAttach(GPIO_PIN, pulse_frq(), p_range);
   setduty();
-//  ledcWrite(LEDC_CHANNEL_0, ((long)duty * (long)pow(2, p_range)) >> 8);
 }
 
 void update_frq(int diff) {
@@ -63,15 +61,13 @@ void update_frq(int diff) {
   }
   count = newCount;
   // set TOP value
-  ledcSetup(LEDC_CHANNEL_0, pulse_frq(), p_range);
+  ledcChangeFrequency(GPIO_PIN, pulse_frq(), p_range);
   // set Duty ratio
   setduty();
-//  ledcWrite(LEDC_CHANNEL_0, ((long)duty * (long)pow(2, p_range)) >> 8);
 }
 
 #ifndef NOLCD
 void disp_pulse_frq(void) {
-//  freq = ledcReadFreq(LEDC_CHANNEL_0);
   double freq = pulse_frq();
   if (freq < 10000000.0) {
     display.print(" ");
@@ -108,19 +104,18 @@ void disp_pulse_dty(void) {
 
 void pulse_start() {
   pinMode(GPIO_PIN, OUTPUT);
-  ledcSetup(LEDC_CHANNEL_0, pulse_frq(), p_range);
-  ledcAttachPin(GPIO_PIN, LEDC_CHANNEL_0);
+  ledcAttach(GPIO_PIN, pulse_frq(), p_range);
   setduty();
 }
 
 void pulse_close() {
-  ledcDetachPin(GPIO_PIN);
+  ledcDetach(GPIO_PIN);
   pinMode(GPIO_PIN, INPUT_PULLUP);
 }
 
 void setduty(void) {
   if (p_range == 1)
-    ledcWrite(LEDC_CHANNEL_0, 0);   // duty=1 will not work
+    ledcWrite(GPIO_PIN, 0);   // duty=1 will not work
   else
-    ledcWrite(LEDC_CHANNEL_0, ((long)duty * (long)pow(2, p_range)) >> 8);
+    ledcWrite(GPIO_PIN, ((long)duty * (long)pow(2, p_range)) >> 8);
 }
