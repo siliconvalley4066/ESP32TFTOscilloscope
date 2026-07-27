@@ -46,7 +46,26 @@ void CheckTouch() {
     } else if (x < 120) {     // CH1 voltage range
       item = (item != SEL_RANGE1) ? SEL_RANGE1 : SEL_NONE;
     } else if (x < 180) {     // Rate
-      item = (item != SEL_RATE) ? SEL_RATE : SEL_NONE;
+      if (item != SEL_RATE) {
+      item = SEL_RATE;
+      } else if (rate > RATE_MAG) {
+        switch (time_mag) {
+        case 1:
+          time_mag = 2;
+          break;
+        case 2:
+          time_mag = 5;
+          break;
+        case 5:
+          time_mag = 10;
+          break;
+        default:
+          time_mag = 1;
+          break;
+        }
+      } else {
+        item = SEL_NONE;
+      }
     } else if (x < 240) {     // Vertical position
       if (item != SEL_OFST1 && item != SEL_OFST2)
         item = SEL_OFST1;
@@ -66,10 +85,15 @@ void CheckTouch() {
   } else if ((y > 30 && y < 210) & (x < (LCD_WIDTH - 35))) {  // avoid conflict with trigger level
     switch (item) {
     case SEL_RATE:
-      if (x < (LCD_WIDTH / 2)) {  // minus
-        updown_rate(7);         // slow
-      } else {                    // plus
-        updown_rate(3);         // fast
+      if (time_mag < 2 || rate <= RATE_MAG) {
+        if (x < (LCD_WIDTH / 2)) {  // minus
+          updown_rate(7);         // slow
+        } else {                    // plus
+          updown_rate(3);         // fast
+        }
+      } else {
+        mag_pos = map(x, XOFF, LCD_WIDTH - 35, 0, SAMPLES - SAMPLES/time_mag);
+        mag_pos = constrain(mag_pos, 0, SAMPLES - SAMPLES/time_mag - 5);
       }
       break;
     case SEL_RANGE1:
@@ -347,6 +371,44 @@ void disp_trig_mode() {
   display.print(' ');
 }
 
+void DrawText() {
+  if (info_mode & INFO_OFF)
+    return;
+  if (info_mode & INFO_BIG) {
+    display.setTextSize(2); // Big
+  } else {
+    display.setTextSize(1); // Small
+  }
+
+//  if (info_mode && Start) {
+  if (info_mode & (INFO_FRQ1 | INFO_VOL1)) {
+    dataAnalize(0);
+    if (info_mode & INFO_FRQ1)
+      measure_frequency(0);
+    if (info_mode & INFO_VOL1)
+      measure_voltage(0);
+  }
+  if (info_mode & (INFO_FRQ2 | INFO_VOL2)) {
+    dataAnalize(1);
+    if (info_mode & INFO_FRQ2)
+      measure_frequency(1);
+    if (info_mode & INFO_VOL2)
+      measure_voltage(1);
+  }
+  DrawText_big();
+  if (!fft_mode)
+    draw_trig_level((trig_ch == ad_ch0) ? CH1COLOR : CH2COLOR); // draw trig_lv mark
+}
+
+void draw_trig_level(int color) { // draw trig_lv mark
+  int x, y;
+
+  x = XOFF+DISPLNG+1; y = YOFF+LCD_YMAX - trig_lv;
+  display.drawLine(x, y, x+8, y+4, color);
+  display.drawLine(x+8, y+4, x+8, y-4, color);
+  display.drawLine(x+8, y-4, x, y, color);
+}
+
 void TextBG(byte *y, int x, byte chrs) {
   int yinc, wid, hi;
   if (info_mode & INFO_BIG) {
@@ -395,8 +457,16 @@ void DrawText_big() {
     set_menu_color(SEL_TGLVL);
     display.print("TGLV");
   } else {
-    display.setTextColor(OFFCOLOR, BGCOLOR);
-    display.print("VPOS");
+    if (time_mag == 2) {
+      display.print("x2  ");
+    } else if (time_mag == 5) {
+      display.print("x5  ");
+    } else if (time_mag == 10) {
+      display.print("x10 ");
+    } else {
+      display.setTextColor(OFFCOLOR, BGCOLOR);
+      display.print("VPOS");
+    }
   }
   display.setCursor(252, 1);  // Function
   set_menu_color(SEL_FUNC);
@@ -405,6 +475,11 @@ void DrawText_big() {
     display.print("HALT");
   } else {
     display.print("FUNC");
+  }
+
+  if (time_mag > 1) {
+    display.setTextSize(1);
+    y = BOTTOM_LINE + 7;
   }
 
   if (item >= SEL_DISP) {
@@ -918,5 +993,21 @@ byte sw_accel(byte sw) {
     else if (curtime - vtime > 2000) diff = 2;
   }
   return (diff);
+}
+
+void mag_bar(void) {
+  if (time_mag > 1) {
+    int bar = SAMPLES / time_mag;
+    int x1 = XOFF;
+    int x2 = x1 + mag_pos;
+    int x3 = x2 + bar;
+    int y = YOFF + LCD_YMAX + 5;
+    display.fillRect(x1, y - 3, mag_pos, 7, BGCOLOR);
+    display.fillRect(x3, y - 3, SAMPLES - mag_pos - bar, 7, BGCOLOR);
+    display.drawFastHLine(XOFF, y, SAMPLES, MAGCOLOR);
+    display.fillRect(x2, y - 3, bar, 7, MAGCOLOR);
+  } else if ((info_mode & INFO_BIG) == 0) {
+    // display.fillRect(XOFF, YOFF + LCD_YMAX + 2, SAMPLES, 7, BGCOLOR);
+  }
 }
 #endif

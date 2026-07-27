@@ -1,25 +1,33 @@
+#ifdef ESP32_C3
+#define GPIO_PIN 5  // should not assign GPIO #36 throough #39
+#define LEDC_BIT_MAX 14
+#else
 #define GPIO_PIN 16 // should not assign GPIO #36 throough #39
+#define LEDC_BIT_MAX 16
+#endif
 
 byte duty = 128;      // duty ratio = duty/256
-byte p_range = 16;    // bit_num 1 - 16
+byte p_range = LEDC_BIT_MAX;    // bit_num 1 - LEDC_BIT_MAX
 unsigned short count;   // rate 256/256 - 1/256
 
 double pulse_frq(void) {  // 4.768Hz <= pulse_frq <= 40MHz
   return(80.0e6 / pow(2, p_range) * count / 256.0);
 }
 
+#ifndef NOWEB
 void set_pulse_frq(float freq) {  // 4.768Hz <= freq <= 40MHz
   if (freq > 40e6) freq = 40e6;
-  p_range = constrain(int(log(80e6/freq)/log(2)), 1, 16);
+  p_range = constrain(int(log(80e6/freq)/log(2)), 1, LEDC_BIT_MAX);
   count = round(256.0 / 80.0e6 * pow(2, p_range) * freq);
   ledcChangeFrequency(GPIO_PIN, pulse_frq(), p_range);
   setduty();
 }
+#endif
 
 void pulse_init() {
   int divide;
-  p_range = constrain(p_range, 1, 16);
-  if (p_range < 16)
+  p_range = constrain(p_range, 1, LEDC_BIT_MAX);
+  if (p_range < LEDC_BIT_MAX)
     count = constrain(count, 129, 256);
   else
     count = constrain(count, 1, 256);
@@ -45,7 +53,7 @@ void update_frq(int diff) {
   newCount = (long)count - fast * diff;
 
   if (newCount < 129) {
-    if (p_range > 15) {
+    if (p_range >= LEDC_BIT_MAX) {
       newCount = constrain(newCount, 0, 256);
     } else {
       ++p_range;
@@ -68,7 +76,7 @@ void update_frq(int diff) {
 
 #ifndef NOLCD
 void disp_pulse_frq(void) {
-  double freq = pulse_frq();
+  float freq = pulse_frq();
   if (freq < 10000000.0) {
     display.print(" ");
   }
@@ -91,24 +99,22 @@ void disp_pulse_frq(void) {
     display.print(freq, 0);
   }
   display.print("Hz ");
-  if ((duty*100.0/256.0) < 9.95) {
-    display.print(" ");
-  }
 }
 
 void disp_pulse_dty(void) {
-//  display.print(duty*100.0/256.0, 1); display.print('%');
-  display.print(duty*0.390625, 1); display.print("%  ");
+  if (duty < 26)    // < 10.0%
+    display.print(' ');
+  display.print(duty*100.0/256.0, 1); display.print("% ");
 }
 #endif
 
-void pulse_start() {
+void pulse_start(void) {
   pinMode(GPIO_PIN, OUTPUT);
   ledcAttach(GPIO_PIN, pulse_frq(), p_range);
   setduty();
 }
 
-void pulse_close() {
+void pulse_close(void) {
   ledcDetach(GPIO_PIN);
   pinMode(GPIO_PIN, INPUT_PULLUP);
 }
@@ -117,5 +123,5 @@ void setduty(void) {
   if (p_range == 1)
     ledcWrite(GPIO_PIN, 0);   // duty=1 will not work
   else
-    ledcWrite(GPIO_PIN, ((long)duty * (long)pow(2, p_range)) >> 8);
+    ledcWrite(GPIO_PIN, ((long)duty << p_range) >> 8);
 }
