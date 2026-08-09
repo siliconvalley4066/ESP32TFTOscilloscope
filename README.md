@@ -5,7 +5,8 @@ ESP32 Oscilloscope for 320x240 TFT LCD and wireless WEB display
 
 This displays an oscilloscope screen both on a 320x240 TFT LCD and also on the WEB page simultaneusly.
 The settings are controled on the touch screen of the TFT LCD and also on the WEB page.
-You can view the oscilloscope screen on the WEB browser of the PC or the tablet or the smartphone.
+You can view the oscilloscope screen on the WEB browser of the PC or the tablet or the smartphone.<br>
+From v1.12 onwards, multi-channel ADC sampling in continuous mode using DMA has been adopted instead of I2S.
 
 Specifications:
 <li>Dual input channel</li>
