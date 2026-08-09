@@ -43,6 +43,7 @@ void CheckTouch() {
         ch0_mode = MODE_ON;
         display.fillScreen(BGCOLOR);
       }
+      ch_mode_config();
     } else if (x < 120) {     // CH1 voltage range
       item = (item != SEL_RANGE1) ? SEL_RANGE1 : SEL_NONE;
     } else if (x < 180) {     // Rate
@@ -216,6 +217,7 @@ void low_touch_base(uint16_t x) {
     } else if (ch1_mode == MODE_OFF) {
       ch1_mode = MODE_ON;
     }
+    ch_mode_config();
   } else if (x < 120) {     // CH2 voltage range
     item = (item != SEL_RANGE2) ? SEL_RANGE2 : SEL_NONE;
   } else if (x < 180) {     // Trigger source
@@ -340,7 +342,7 @@ void disp_ch1_range() {
   int color;
   if (item == SEL_RANGE2) {
     color = HIGHCOLOR;
-  } else if (ch1_mode == MODE_OFF || rate < RATE_DUAL) {
+  } else if (ch1_mode == MODE_OFF || (rate < RATE_DUAL && ch0_mode != MODE_OFF)) {
     color = OFFCOLOR;
   } else {
     color = TXTCOLOR;
@@ -618,6 +620,22 @@ void CheckSW() {
     saveTimer = 5000;     // set EEPROM save timer to 5 second
   }
 
+  if (wch0_mode != MODE_NUL) {
+    ch0_mode = wch0_mode;
+    wch0_mode = MODE_NUL;
+    ch_mode_config();
+    display.fillScreen(BGCOLOR);
+    saveTimer = 5000;     // set EEPROM save timer to 5 second
+  }
+
+  if (wch1_mode != MODE_NUL) {
+    ch1_mode = wch1_mode;
+    wch1_mode = MODE_NUL;
+    ch_mode_config();
+    display.fillScreen(BGCOLOR);
+    saveTimer = 5000;     // set EEPROM save timer to 5 second
+  }
+
 #ifndef NOLCD
 #ifdef BUTTON5DIR
   if (digitalRead(DOWNPIN) == LOW && digitalRead(LEFTPIN) == LOW) {
@@ -677,7 +695,7 @@ void updown_rate(byte sw) {
     orate = rate;
     if (rate > 0) {
       rate --;
-      rate_i2s_mode_config();
+      rate_dma_mode_config();
     }
 #ifndef NOLCD
     display.fillScreen(BGCOLOR);
@@ -686,11 +704,16 @@ void updown_rate(byte sw) {
     orate = rate;
     if (rate < RATE_MAX) {
       rate ++;
-      rate_i2s_mode_config();
+      rate_dma_mode_config();
     } else {
       rate = RATE_MAX;
     }
   }
+}
+
+void ch_mode_config(void) {
+  orate = rate;
+  rate_dma_mode_config();
 }
 
 #ifndef NOLCD
@@ -703,6 +726,7 @@ void menu_sw(byte sw) {
         ch0_mode = MODE_INV;
       else
         ch0_mode = MODE_ON;
+      ch_mode_config();
     } else if (sw == BTN_LEFT) {  // CH0 - ON/OFF
       if (ch0_mode == MODE_OFF)
         ch0_mode = MODE_ON;
@@ -710,6 +734,7 @@ void menu_sw(byte sw) {
         ch0_mode = MODE_OFF;
         display.fillScreen(BGCOLOR);
       }
+      ch_mode_config();
     }
     break;
   case SEL_CH2:   // CH1 mode
@@ -729,6 +754,7 @@ void menu_sw(byte sw) {
         ch1_mode = MODE_OFF;
         display.fillScreen(BGCOLOR);
       }
+      ch_mode_config();
     }
     break;
   case SEL_RANGE1:  // CH0 voltage range

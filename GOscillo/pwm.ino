@@ -77,9 +77,6 @@ void update_frq(int diff) {
 #ifndef NOLCD
 void disp_pulse_frq(void) {
   float freq = pulse_frq();
-  if (freq < 10000000.0) {
-    display.print(" ");
-  }
   if (freq < 10.0) {
     display.print(freq, 5);
   } else if (freq < 100.0) {
@@ -91,12 +88,11 @@ void disp_pulse_frq(void) {
   } else if (freq < 100000.0) {
     display.print(freq, 1);
   } else if (freq < 1000000.0) {
-    display.print(" ");
-    display.print(freq, 0);
+    display.print(freq * 1e-3, 2); display.print('k');
   } else if (freq < 10000000.0) {
-    display.print(freq, 0);
+    display.print(freq * 1e-6, 4); display.print('M');
   } else {
-    display.print(freq, 0);
+    display.print(freq * 1e-6, 3); display.print('M');
   }
   display.print("Hz ");
 }

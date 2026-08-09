@@ -1,8 +1,8 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.11
- * for esp32 by Espressif Systems version 3.3.5
- * The max software loop sampling rates are 10ksps with 2 channels and 20ksps with a channel.
- * In the I2S DMA mode, it can be set up to 250ksps.
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.12
+ * for esp32 by Espressif Systems version 3.3.11
+ * The max software loop sampling rates are 5ksps with 2 channels.
+ * In the Continuous DMA mode, it can be set up to 125ksps with 2 channels and 250ksps with single channel.
  * + Pulse Generator
  * + PWM DDS Function Generator (23 waveforms)
  * Copyright (c) 2023,2024,2026 Siliconvalley4066
@@ -59,8 +59,8 @@ const int DISPLNG = 300;
 const int DOTS_DIV = 25;
 const int XOFF = 10;
 const int YOFF = 20;
-const int ad_ch0 = ADC1_CHANNEL_6;  // Analog 34 pin for channel 0 ADC1_CHANNEL_6
-const int ad_ch1 = ADC1_CHANNEL_7;  // Analog 35 pin for channel 1 ADC1_CHANNEL_7
+const int ad_ch0 = ADC1_CHANNEL_6;  // Analog 34 pin for channel 0
+const int ad_ch1 = ADC1_CHANNEL_7;  // Analog 35 pin for channel 1
 const long VREF[] = {83, 165, 413, 825, 1650}; // reference voltage 3.3V ->  82.5 :   1V/div range (40mV/dot)
                                         //                        -> 165 : 0.5V/div
                                         //                        -> 413 : 0.2V/div
@@ -73,6 +73,7 @@ const int ac_offset[] PROGMEM = {2917, 434, -1055, -1552, -1800}; // 4 div offse
 const int MODE_ON = 0;
 const int MODE_INV = 1;
 const int MODE_OFF = 2;
+const int MODE_NUL = 3;
 const char Modes[3][4] PROGMEM = {"ON", "INV", "OFF"};
 const int TRIG_AUTO = 0;
 const int TRIG_NORM = 1;
@@ -84,14 +85,14 @@ const int TRIG_E_DN = 1;
 #define RATE_MIN 0
 #define RATE_MAX 18
 #define RATE_NUM 19
-#define RATE_DMA 5
-#define RATE_DUAL 7
+#define RATE_DMA 7
+#define RATE_DUAL 4
 #define RATE_SLOW 9
 #define RATE_ROLL 15
-#define RATE_MAG 1
+#define RATE_MAG 2
 #define ITEM_MAX 28
-const char Rates[RATE_NUM][5] PROGMEM = {"10us", "20us", "100u", "200u", "500u", " 1ms", "1.3m", " 2ms", " 5ms", "10ms", "20ms", "50ms", "100m", "200m", "0.5s", " 1s ", " 2s ", " 5s ", " 10s"};
-const unsigned long HREF[] PROGMEM = {40, 40, 40, 80, 200, 400, 500, 800, 2000, 4000, 8000, 20000, 40000, 80000, 200000, 400000, 800000, 2000000, 4000000};
+const char Rates[RATE_NUM][5] PROGMEM = {"10us", "20us", "50u", "100u", "200u", "500u", " 1ms", " 2ms", " 5ms", "10ms", "20ms", "50ms", "100m", "200m", "0.5s", " 1s ", " 2s ", " 5s ", " 10s"};
+const unsigned long HREF[] PROGMEM = {40, 40, 40, 40, 80, 200, 400, 800, 2000, 4000, 8000, 20000, 40000, 80000, 200000, 400000, 800000, 2000000, 4000000};
 #define RANGE_MIN 0
 #define RANGE_MAX 4
 #define VRF 3.3
@@ -99,12 +100,14 @@ const char Ranges[5][5] PROGMEM = {" 1V ", "0.5V", "0.2V", "0.1V", "50mV"};
 byte range0 = RANGE_MIN;
 byte range1 = RANGE_MIN;
 byte ch0_mode = MODE_ON, ch1_mode = MODE_ON, rate = 0, orate, wrate = 0;
+byte wch0_mode = MODE_NUL, wch1_mode = MODE_NUL;
 byte trig_mode = TRIG_AUTO, trig_lv = 10, trig_edge = TRIG_E_UP, trig_ch = ad_ch0;
 bool Start = true;  // Start sampling
 byte item = 0;      // Default item
 short ch0_off = 0, ch1_off = 400;
 byte data[4][SAMPLES];                  // keep twice of the number of channels to make it a double buffer
-uint16_t cap_buf[NSAMP], cap_buf1[NSAMP];
+uint32_t dma_buf[NSAMP*2], dma_buf1[NSAMP/2];
+uint16_t *cap_buf = (uint16_t *)dma_buf, *cap_buf1 = (uint16_t *)dma_buf1;
 #ifndef NOWEB
 uint16_t payload[SAMPLES*2+2];
 #endif
@@ -121,6 +124,8 @@ int trigger_pos;
 int mag_pos = 0;
 
 //#define LED_BUILTIN 2
+#define ADC0PIN   34  // Analog pin for channel 0
+#define ADC1PIN   35  // Analog pin for channel 1
 #define LEFTPIN   12  // LEFT
 #define RIGHTPIN  13  // RIGHT
 #define UPPIN     14  // UP
@@ -164,14 +169,14 @@ void setup(){
 #ifndef NOWEB
   xTaskCreatePinnedToCore(setup1, "WebProcess", 4096, NULL, 4, &taskHandle, PRO_CPU_NUM); //Core 0でタスク開始
 #endif
+  pinMode(ADC0PIN, ANALOG);         // Analog pin for channel 0
+  pinMode(ADC1PIN, ANALOG);         // Analog pin for channel 1
   pinMode(CH0DCSW, INPUT_PULLUP);   // CH1 DC/AC
   pinMode(CH1DCSW, INPUT_PULLUP);   // CH2 DC/AC
   pinMode(UPPIN, INPUT_PULLUP);     // up
   pinMode(DOWNPIN, INPUT_PULLUP);   // down
   pinMode(RIGHTPIN, INPUT_PULLUP);  // right
   pinMode(LEFTPIN, INPUT_PULLUP);   // left
-  pinMode(34, ANALOG);              // Analog 34 pin for channel 0 ADC1_CHANNEL_6
-  pinMode(35, ANALOG);              // Analog 35 pin for channel 1 ADC1_CHANNEL_7
 #ifdef NOLCD
   pinMode(LED_BUILTIN, OUTPUT);     // sets the digital pin as output
 #else
@@ -204,7 +209,7 @@ void setup(){
   if (dds_mode)
     dds_setup_init();
   orate = RATE_DMA + 1;                 // old rate befor change
-  rate_i2s_mode_config();
+  rate_dma_mode_config();
 }
 
 #ifndef NOLCD
@@ -406,6 +411,8 @@ void scaleDataArray(byte ad_ch, int trig_point)
     mag_mag = 10; mag_pos = 0;  // x10 magnification for display
   } else if (rate == 1) {
     mag_mag = 5; mag_pos = 0;   // x5 magnification for display
+  } else if (rate == 2) {
+    mag_mag = 2; mag_pos = 0;   // x2 magnification for display
   }
   if (rate < RATE_ROLL) {
     switch (mag_mag) {
@@ -475,9 +482,7 @@ void loop() {
   unsigned long auto_time;
 
   timeExec = 100;
-#ifdef NOLCD
-  digitalWrite(LED_BUILTIN, LED_ON);  // GPIO2 is used for touch CS
-#endif
+  led_on();
   if (rate > RATE_DMA) {
     set_trigger_ad();
     auto_time = pow(10, rate / 3) + 5;
@@ -514,8 +519,8 @@ void loop() {
     else
       sample = 0;
 
-    if (rate <= RATE_DMA) { // channel 0 or 1 I2S DMA sampling (Max 500ksps)
-      sample_i2s();
+    if (rate <= RATE_DMA) { // channel 0 or 1 DMA sampling (Max 250ksps)
+      sample_dma();
     } else if (rate == 6) { // channel 0 or 1 50us sampling
       sample_200us(50);
     } else if (rate >= 7 && rate <= 8) {  // dual channel 100us, 200us sampling
@@ -523,9 +528,7 @@ void loop() {
     } else {                // dual channel .5ms, 1ms, 2ms, 5ms, 10ms, 20ms sampling
       sample_dual_ms(HREF[rate] / 10);
     }
-#ifdef NOLCD
-    digitalWrite(LED_BUILTIN, LED_OFF); // GPIO2 is used for touch CS
-#endif
+    led_off();
     draw_screen();
   } else if (Start) { // 40ms - 400ms sampling
     timeExec = 5000;
@@ -574,9 +577,7 @@ void loop() {
     DrawGrid(disp_leng);  // right side grid   
 #endif
     // Serial.println(millis()-st0);
-#ifdef NOLCD
-    digitalWrite(LED_BUILTIN, LED_OFF); // GPIO2 is used for touch CS
-#endif
+    led_off();
 //    DrawGrid();
     DrawText();
   } else {
@@ -844,6 +845,20 @@ void draw_scale() {
 float freqhref() {
   return (float) HREF[rate];
 }
+
+#if defined(ESP32_C3) && !defined(NOLCD)
+void led_on(void) {}
+
+void led_off(void) {}
+#else
+void led_on(void) {
+  digitalWrite(LED_BUILTIN, LED_ON);
+}
+
+void led_off(void) {
+  digitalWrite(LED_BUILTIN, LED_OFF);
+}
+#endif
 
 #ifdef EEPROM_START
 void saveEEPROM() {                   // Save the setting value in EEPROM after waiting a while after the button operation.

@@ -1,6 +1,5 @@
 #ifndef NOWEB
 #include <WiFi.h>
-#include <FS.h>
 #include <WebServer.h>
 #include <WebSocketsServer.h> // arduinoWebSockets library
 #include <ESPmDNS.h>
@@ -56,11 +55,11 @@ void handle_ch1_mode() {
   if (val != NULL) {
     // Serial.println(val);
     if (val == "chon") {
-      ch0_mode = MODE_ON;       // CH1 ON
+      wch0_mode = MODE_ON;      // CH1 ON
     } else if (val == "chinv") {
-      ch0_mode = MODE_INV;      // CH1 INV
+      wch0_mode = MODE_INV;     // CH1 INV
     } else if (val == "choff") {
-      ch0_mode = MODE_OFF;      // CH1 OFF
+      wch0_mode = MODE_OFF;     // CH1 OFF
     }
     server.send(200, "text/html", "OK");  // response 200, send OK
   }
@@ -71,11 +70,11 @@ void handle_ch2_mode() {
   if (val != NULL) {
     // Serial.println(val);
     if (val == "chon") {
-      ch1_mode = MODE_ON;       // CH2 ON
+      wch1_mode = MODE_ON;      // CH2 ON
     } else if (val == "chinv") {
-      ch1_mode = MODE_INV;      // CH2 INV
+      wch1_mode = MODE_INV;     // CH2 INV
     } else if (val == "choff") {
-      ch1_mode = MODE_OFF;      // CH2 OFF
+      wch1_mode = MODE_OFF;     // CH2 OFF
     }
     server.send(200, "text/html", "OK");  // response 200, send OK
   }
@@ -643,7 +642,7 @@ async function post_duty() {
 }
 </script>
 <body>
-<h3>ESP32 Web Oscilloscope ver. 1.33</h3>
+<h3>ESP32 Web Oscilloscope ver. 1.38</h3>
 <div style='float: left; margin-right: 10px'>
 <canvas id='cvs1' width='601' height='401' class='float'></canvas></div>
 <form id='rate0'>Rate: <label id="rate_area">%RATE% %REALDMA%</label>
