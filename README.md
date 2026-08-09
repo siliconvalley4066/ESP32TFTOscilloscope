@@ -56,3 +56,6 @@ in the file GOscillo.ino.
 
 Schematics:<br>
 <img src="ESP32TFTGOscillo.png">
+
+Description is here, although it is written in Japanese language:<br>
+https://ss1.xrea.com/harahore.g2.xrea.com/ESP32/ESP32TFTOscilloscope.html
