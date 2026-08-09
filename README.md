@@ -10,7 +10,7 @@ You can view the oscilloscope screen on the WEB browser of the PC or the tablet 
 Specifications:
 <li>Dual input channel</li>
 <li>Input voltage range 0 to 3.3V</li>
-<li>12 bit ADC 250 ksps single channel, 10 ksps dual channel</li>
+<li>12 bit ADC 250 ksps single channel, 125 ksps dual channel</li>
 <li>Measures minimum, maximum and average values</li>
 <li>Measures frequency and duty cycle</li>
 <li>Spectrum FFT analysis</li>
@@ -21,7 +21,7 @@ Specifications:
 <p>
 Develop environment is:<br>
 Arduino IDE 1.8.19<br>
-esp32 by Espressif Systems version 3.3.5<br>
+esp32 by Espressif Systems version 3.3.11<br>
 CPU speed 240 MHz<br>
 </p>
 
@@ -34,6 +34,7 @@ You need to customize the TFT_espi library by referring to the TFT_espi folder h
 
 10usec/div range is 10 times magnification at 250ksps.<br>
 20usec/div range is 5 times magnification at 250ksps.<br>
+50usec/div range is 2 times magnification at 250ksps.<br>
 The magnification applies sin(x)/x interpolation.
 
 For WEB operations, edit the source code WebTask.ino and replace your Access Point and the password.
