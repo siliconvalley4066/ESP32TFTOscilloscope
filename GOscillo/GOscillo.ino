@@ -614,9 +614,9 @@ void draw_screen() {
 #ifndef NOLCD
     DrawGrid();
     ClearAndDrawGraph();
+    mag_bar();
 #endif
     DrawText();
-    mag_bar();
 #ifndef NOWEB
     if (ch0_mode == MODE_OFF) payload[0] = -1;
     if (ch1_mode == MODE_OFF) payload[SAMPLES] = -1;

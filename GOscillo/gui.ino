@@ -372,8 +372,10 @@ void disp_trig_mode() {
   display.print(TRIG_Modes[trig_mode]);
   display.print(' ');
 }
+#endif
 
 void DrawText() {
+#ifndef NOLCD
   if (info_mode & INFO_OFF)
     return;
   if (info_mode & INFO_BIG) {
@@ -400,8 +402,13 @@ void DrawText() {
   DrawText_big();
   if (!fft_mode)
     draw_trig_level((trig_ch == ad_ch0) ? CH1COLOR : CH2COLOR); // draw trig_lv mark
+#else
+  dataAnalize(0);
+  measure_frequency(0);
+#endif
 }
 
+#ifndef NOLCD
 void draw_trig_level(int color) { // draw trig_lv mark
   int x, y;
 
@@ -624,7 +631,9 @@ void CheckSW() {
     ch0_mode = wch0_mode;
     wch0_mode = MODE_NUL;
     ch_mode_config();
+#ifndef NOLCD
     display.fillScreen(BGCOLOR);
+#endif
     saveTimer = 5000;     // set EEPROM save timer to 5 second
   }
 
@@ -632,7 +641,9 @@ void CheckSW() {
     ch1_mode = wch1_mode;
     wch1_mode = MODE_NUL;
     ch_mode_config();
+#ifndef NOLCD
     display.fillScreen(BGCOLOR);
+#endif
     saveTimer = 5000;     // set EEPROM save timer to 5 second
   }
 
