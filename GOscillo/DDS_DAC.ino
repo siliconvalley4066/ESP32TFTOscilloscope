@@ -40,7 +40,7 @@ volatile unsigned long phaccu;   // pahse accumulator
 volatile unsigned long tword_m;  // dds tuning word m
 volatile unsigned char wavebuf[256];
 hw_timer_t * timer = NULL;
-void IRAM_ATTR onTimer();
+void IRAM_ATTR onDDSTimer();
 
 void dds_setup_init() {
   dac_output_enable(DAC_CHANNEL_1);
@@ -50,11 +50,6 @@ void dds_setup_init() {
     pwm_dds_setup();
 }
 
-void dds_setup() {
-  if (dds_mode) return;
-  dds_setup_init();
-}
-
 void pwm_dds_setup() {
   if (timer == NULL) {
     Setup_timer();
@@ -62,8 +57,22 @@ void pwm_dds_setup() {
     wp = (unsigned char *) wavetable[wave_id];
     memcpy((void*)wavebuf, wp, 256);
   }
-//  timerAttachInterrupt(timer, &onTimer);
+//  timerAttachInterrupt(timer, &onDDSTimer);
   timerStart(timer);
+}
+
+void cw_dds_setup() {
+  dac_cw_generator_enable();
+  dac_cw_config_t cw = {
+    .en_ch = DAC_CHANNEL_1,
+    .scale = DAC_CW_SCALE_1,  // DAC_CW_SCALE_2:1/2 DAC_CW_SCALE_4:1/4 DAC_CW_SCALE_8:1/8
+    .phase = DAC_CW_PHASE_0,  // DAC_CW_PHASE_0:0degree DAC_CW_PHASE_180:+180degree
+    .freq = (uint32_t) 130,   // 130(130Hz) ~ 65537(65.537kHz why uint32?)
+    .offset = (int8_t) 0      // 0 yields Bug
+  };
+  dac_cw_generator_config(&cw);
+  SET_PERI_REG_BITS(SENS_SAR_DAC_CTRL2_REG, SENS_DAC_DC1, 0, SENS_DAC_DC1_S);  // fix offset bug
+  SET_PERI_REG_BITS(SENS_SAR_DAC_CTRL1_REG, SENS_SW_FSTEP, ifreq, SENS_SW_FSTEP_S);
 }
 
 void dds_close() {
@@ -74,6 +83,11 @@ void dds_close() {
     Close_timer();
   }
   dac_output_disable(DAC_CHANNEL_1);
+}
+
+void dds_setup() {
+  if (dds_mode) return;
+  dds_setup_init();
 }
 
 void dds_set_freq() {
@@ -104,7 +118,7 @@ void set_wave(int id) {
 // this is the timebase REFCLOCK for the DDS generator
 // FOUT = (M (REFCLK)) / (2 exp 32)
 // runtime : ? microseconds ( inclusive push and pop)
-void IRAM_ATTR onTimer() {
+void IRAM_ATTR onDDSTimer() {
   phaccu=phaccu+tword_m; // soft DDS, phase accu with 32 bits
   icnt=phaccu >> 24;     // use upper 8 bits for phase accu as frequency information
                          // read value fron ROM sine table and send to PWM DAC
@@ -117,7 +131,7 @@ void IRAM_ATTR onTimer() {
 // 80000000/1000000*200 = 5.00 kHz clock
 void Setup_timer() {
   timer = timerBegin(5000);
-  timerAttachInterrupt(timer, &onTimer);
+  timerAttachInterrupt(timer, &onDDSTimer);
   timerAlarm(timer, 1, true, 0);
 }
 
@@ -220,17 +234,3 @@ void disp_dds_wave(void) {
   display.print(Wavename[wave_id]); 
 }
 #endif
-
-void cw_dds_setup() {
-  dac_cw_generator_enable();
-  dac_cw_config_t cw = {
-    .en_ch = DAC_CHANNEL_1,
-    .scale = DAC_CW_SCALE_1,  // DAC_CW_SCALE_2:1/2 DAC_CW_SCALE_4:1/4 DAC_CW_SCALE_8:1/8
-    .phase = DAC_CW_PHASE_0,  // DAC_CW_PHASE_0:0degree DAC_CW_PHASE_180:+180degree
-    .freq = (uint32_t) 130,   // 130(130Hz) ~ 65537(65.537kHz why uint32?)
-    .offset = (int8_t) 0      // 0 yields Bug
-  };
-  dac_cw_generator_config(&cw);
-  SET_PERI_REG_BITS(SENS_SAR_DAC_CTRL2_REG, SENS_DAC_DC1, 0, SENS_DAC_DC1_S);  // fix offset bug
-  SET_PERI_REG_BITS(SENS_SAR_DAC_CTRL1_REG, SENS_SW_FSTEP, ifreq, SENS_SW_FSTEP_S);
-}

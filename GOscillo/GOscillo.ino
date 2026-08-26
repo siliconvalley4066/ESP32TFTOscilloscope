@@ -1,10 +1,11 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.12
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.13
  * for esp32 by Espressif Systems version 3.3.11
  * The max software loop sampling rates are 5ksps with 2 channels.
  * In the Continuous DMA mode, it can be set up to 125ksps with 2 channels and 250ksps with single channel.
  * + Pulse Generator
  * + PWM DDS Function Generator (23 waveforms)
+ * + Frequency Counter
  * Copyright (c) 2023,2024,2026 Siliconvalley4066
  */
 /*
@@ -25,6 +26,7 @@ TFT_eSPI display = TFT_eSPI();
 
 #include "driver/adc.h"
 //#include "esp_task_wdt.h"
+#include "FreqCountESPgate.h"
 
 //#define BUTTON5DIR
 #define EEPROM_START 0
@@ -118,8 +120,9 @@ byte info_mode = 3; // Text information display mode
 bool dac_cw_mode = false;
 int trigger_ad;
 volatile bool wfft, wdds;
-
 byte time_mag = 1;  // magnify timebase: 1, 2, 5 or 10
+double compensation = 1.0;  // compensation for frequency counter
+boolean calib = false;      // calibrate flag for frequency counter
 int trigger_pos;
 int mag_pos = 0;
 
@@ -190,7 +193,7 @@ void setup(){
 //  Serial.begin(115200);
 //  Serial.printf("CORE1 = %d\n", xPortGetCoreID());
 #ifdef EEPROM_START
-  EEPROM.begin(32);                     // set EEPROM size. Necessary for ESP32
+  EEPROM.begin(64);                     // set EEPROM size. Necessary for ESP32
   loadEEPROM();                         // read last settings from EEPROM
 #else
   set_default();
@@ -255,6 +258,49 @@ void DrawGrid() {
   }
 }
 #endif
+
+void fcount_disp() {
+  static unsigned long count = 0;
+
+  if (!fcount_mode) return;
+  if (FreqCount.available()) {
+    count = FreqCount.read();
+    if (calib) calibrate(count);
+    calib = false;
+    count = count * compensation;
+  }
+  displayfreq(count);
+}
+
+void displayfreq(unsigned long freq) {
+  String ss = String(freq);
+  int l = ss.length();
+  int n = l;
+  if (l > 3) ++n;
+  if (l > 6) ++n;
+  for (int i = 10; i > n; --i) {
+    display.print(' ');  // leading blanks
+  }
+  for (int i = 0; i < l; ++i) {
+    display.print(ss[i]);
+    if ((l-i) == 7) display.print(',');
+    if ((l-i) == 4) display.print(',');
+  }
+  display.print("Hz ");
+}
+
+void calibrate(unsigned long freq) {
+  float references[] = {30e6, 25e6, 24e6, 20e6, 16e6, 12e6, 10e6, 8e6, 6e6, 5e6,
+          4e6, 3e6, 2e6, 1e6, 1e5, 32768.0};
+  int num = sizeof(references) / sizeof(float);
+  for (int i = 0; i < num; ++i) {
+    double ref = (double) references[i];
+    if ((ref * 0.99995) < freq && freq < (ref * 1.00005)) { // 50ppm
+      compensation = ref / (double) freq;
+      break;
+    }
+  }
+}
 
 void display_range(byte rng) {
   display.print(Ranges[rng]);
@@ -420,9 +466,9 @@ void scaleDataArray(byte ad_ch, int trig_point)
     case 5:
     case 10:
       mag_pos = constrain(mag_pos, 0, SAMPLES - SAMPLES/mag_mag - 5);
-      mag(data[sample+ch], mag_mag, mag_pos); // magnify timebase for display
+      mag(data[sample+ch], mag_mag, mag_pos);   // magnify timebase for display
 #ifndef NOWEB
-      mag(rdata, mag_mag, mag_pos);           // magnify timebase for WEB
+      mag(rdata, mag_mag, mag_pos);             // magnify timebase for WEB
 #endif
       break;
     default:
@@ -542,7 +588,7 @@ void loop() {
       r = r_[rate - RATE_ROLL];  // rate may be changed in loop
       while((st - micros())<r) {
         CheckSW();
-        if (rate<RATE_ROLL)
+        if (rate < RATE_ROLL)
           break;
       }
       if (rate<RATE_ROLL) { // sampling rate has been changed
@@ -861,6 +907,7 @@ void led_off(void) {
 #endif
 
 #ifdef EEPROM_START
+
 void saveEEPROM() {                   // Save the setting value in EEPROM after waiting a while after the button operation.
   uint16_t p = EEPROM_START;
   if (saveTimer > 0) {                // If the timer value is positive
@@ -895,6 +942,9 @@ void saveEEPROM() {                   // Save the setting value in EEPROM after 
       EEPROM.write(p++, (ifreq >> 24) & 0xff);
       EEPROM.write(p++, dac_cw_mode);
       EEPROM.write(p++, time_mag);
+      byte *q = (byte *) &compensation;
+      for (int i = 0; i < 8; ++i)
+        EEPROM.write(p++, *q++);
       EEPROM.commit();    // actually write EEPROM. Necessary for ESP32
     }
   }
@@ -925,6 +975,7 @@ void set_default() {
   ifreq = 23841;  // 238.41Hz
   dac_cw_mode = false;
   time_mag = 1;   // magnify timebase
+  compensation = 1.0; // frequency counter
 }
 
 extern const byte wave_num;
@@ -982,6 +1033,11 @@ void loadEEPROM() { // Read setting values from EEPROM (abnormal values will be 
   if (ifreq > 99999L) ++error;
   dac_cw_mode = EEPROM.read(p++);           // DDS CW mode
   time_mag = EEPROM.read(p++);              // magnify timebase
+  byte *q = (byte *) &compensation;
+  for (int i = 0; i < 8; ++i)
+    *q++ = EEPROM.read(p++);
+  if (compensation < 1.002 && compensation > 0.998) ; // OK
+  else ++error;
   if (error > 0) {
     set_default();
   }

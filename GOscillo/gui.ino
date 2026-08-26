@@ -255,6 +255,10 @@ void low_touch_func(uint16_t x) {
       item = SEL_DISP;
       clear_bottom_text();                          // clear bottom text area
     } else if (x < 300) {     // Frequency Counter
+      item = SEL_FCNT;
+      clear_bottom_text();                          // clear bottom text area
+      fcount_mode = true;
+      FreqCount.begin(1000, 17, 26);
     }
   } else if (item >= SEL_PWM && item <= SEL_PWMDUTY) {
     if (x < 60) {             // PWM
@@ -303,6 +307,15 @@ void low_touch_func(uint16_t x) {
     } else if (x < 300) { // SEL_DISPOFF;
       info_mode ^= INFO_OFF;
       clear_text();
+    }
+  } else if (item == SEL_FCNT) {
+    if (x > 240 && x < 300) { // FCNT
+      item = SEL_FUNC;
+      fcount_mode = false;
+      FreqCount.end();
+      clear_bottom_text();                          // clear bottom text area
+    } else {
+      calib = true;
     }
   }
 }
@@ -532,6 +545,11 @@ void DrawText_big() {
     disp_pulse_frq();
     set_pos_menu(240, y, SEL_PWMDUTY);  // Duty
     disp_pulse_dty();
+  } else if (item == SEL_FCNT && fcount_mode == true) {
+    set_pos_color(50, y, TXTCOLOR); // Frequency
+    fcount_disp();
+    set_pos_menu(252, y, SEL_FCNT); // FCNT
+    display.print("FCNT ");
   } else if (item >= SEL_FUNC) {
     set_pos_menu(1, y, SEL_FFT);    // FFT
     display.print("FFT ");
@@ -542,7 +560,7 @@ void DrawText_big() {
     set_pos_menu(192, y, SEL_DISP); // DISP
     display.print("DISP ");
     set_pos_menu(252, y, SEL_FCNT); // FCNT
-    display.print("     ");
+    display.print("FCNT ");
   } else {
     disp_ch1(1, y);         // CH2
     display_ac_inv(y, CH1DCSW, ch1_mode);
@@ -934,6 +952,15 @@ void menu_sw(byte sw) {
       update_ifrq(-diff);
     }
     break;
+  case SEL_FCNT:    // FCNT
+    if (sw == BTN_RIGHT) {        // +
+      fcount_mode = true;
+      clear_bottom_text();    // clear bottom text area
+    } else if (sw == BTN_LEFT) {  // -
+      fcount_mode = false;
+      clear_bottom_text();    // clear bottom text area
+    }
+    break;
   case SEL_DISPFRQ: // Frequency and Duty display
     if (sw == BTN_RIGHT) {        // ON
       info_mode = (info_mode & 0x3c) | ((info_mode + 1) & 0x3);
@@ -1008,7 +1035,7 @@ void increment_item() {
   ++item;
   if (item > SEL_DISPOFF) item = 0;
   if (item != SEL_FFT) wfft = false;      // exit FFT mode
-  if ((item == SEL_PWM) || (item == SEL_DDS) || (item == SEL_DISP))
+  if ((item == SEL_PWM) || (item == SEL_DDS) || (item == SEL_DISP) || (item == SEL_FCNT))
     clear_bottom_text();                  // clear bottom text area
 }
 
@@ -1017,7 +1044,7 @@ void decrement_item() {
   else item = SEL_DISPOFF;
   if (item != SEL_FFT) wfft = false;      // exit FFT mode
   if ((item == SEL_FFT) || (item == SEL_PWM) || (item == SEL_DDSFREQ)
-    || (item == SEL_PWMDUTY) || (item == SEL_DISPOFF))
+    || (item == SEL_PWMDUTY) || (item == SEL_DISPOFF) || (item == SEL_FCNT))
     clear_bottom_text();                  // clear bottom text area
 }
 
