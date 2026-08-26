@@ -9,19 +9,20 @@ You can view the oscilloscope screen on the WEB browser of the PC or the tablet 
 From v1.12 onwards, multi-channel ADC sampling in continuous mode using DMA has been adopted instead of I2S.
 
 Specifications:
-<li>Dual input channel</li>
-<li>Input voltage range 0 to 3.3V</li>
-<li>12 bit ADC 250 ksps single channel, 125 ksps dual channel</li>
-<li>Measures minimum, maximum and average values</li>
-<li>Measures frequency and duty cycle</li>
-<li>Spectrum FFT analysis</li>
-<li>Sampling rate selection</li>
-<li>Built in Pulse Generator</li>
-<li>Built in DDS Function Generator</li>
-<br>
+- Dual input channel
+- Input voltage range 0 to 3.3V
+- 12 bit ADC 250 ksps single channel, 125 ksps dual channel
+- Measures minimum, maximum and average values
+- Measures frequency and duty cycle
+- Spectrum FFT analysis
+- Sampling rate selection
+- Built in Pulse Generator
+- Built in DDS Function Generator
+- Built in Frequency Counter 1Hz - 32MHz (Max 40MHz)
+
 <p>
 Develop environment is:<br>
-Arduino IDE 1.8.19<br>
+Arduino IDE 2.3.10<br>
 esp32 by Espressif Systems version 3.3.11<br>
 CPU speed 240 MHz<br>
 </p>
