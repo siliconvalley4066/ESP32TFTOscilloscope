@@ -23,7 +23,7 @@ Specifications:
 <p>
 Develop environment is:<br>
 Arduino IDE 2.3.10<br>
-esp32 by Espressif Systems version 3.3.11<br>
+esp32 by Espressif Systems version 3.3.12<br>
 CPU speed 240 MHz<br>
 </p>
 
