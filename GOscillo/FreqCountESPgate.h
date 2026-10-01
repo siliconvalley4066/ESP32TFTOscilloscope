@@ -17,7 +17,7 @@ void IRAM_ATTR onTimer(void* arg);
 class FreqCountESPgate {
 private:
   void setupPcnt(uint8_t fpin, uint8_t gpin);
-  bool setupLedc(uint32_t freq, uint8_t resolution, uint32_t duty);
+  bool setupLedc(uint32_t freq, ledc_timer_bit_t resolution, uint32_t duty);
   uint16_t gate_time;
   static uint8_t gate_pin;
   static bool first;

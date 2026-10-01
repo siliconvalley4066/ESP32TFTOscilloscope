@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.13
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.14
  * for esp32 by Espressif Systems version 3.3.11
  * The max software loop sampling rates are 5ksps with 2 channels.
  * In the Continuous DMA mode, it can be set up to 125ksps with 2 channels and 250ksps with single channel.
@@ -260,16 +260,16 @@ void DrawGrid() {
 #endif
 
 void fcount_disp() {
-  static unsigned long count = 0;
+  static unsigned long fcount = 0;
 
   if (!fcount_mode) return;
   if (FreqCount.available()) {
-    count = FreqCount.read();
-    if (calib) calibrate(count);
+    fcount = FreqCount.read();
+    if (calib) calibrate(fcount);
     calib = false;
-    count = count * compensation;
+    fcount = fcount * compensation;
   }
-  displayfreq(count);
+  displayfreq(fcount);
 }
 
 void displayfreq(unsigned long freq) {
@@ -791,7 +791,8 @@ void sample_dual_ms(unsigned int r) { // dual channel. r > 500
   scaleDataArray(ad_ch1, 0);
 }
 
-void sample_200us(unsigned int r) { // adc1_get_raw() with timing, channel 0 or 1. 1250us/div 20ksps
+// adc1_get_raw() with timing, channel 0 or 1. 1250us/div 20ksps
+void sample_200us(unsigned int r) {
   uint16_t *idata;
   int ad_ch;
   if (ch0_mode == MODE_OFF && ch1_mode != MODE_OFF) {
@@ -907,7 +908,6 @@ void led_off(void) {
 #endif
 
 #ifdef EEPROM_START
-
 void saveEEPROM() {                   // Save the setting value in EEPROM after waiting a while after the button operation.
   uint16_t p = EEPROM_START;
   if (saveTimer > 0) {                // If the timer value is positive
@@ -1022,7 +1022,7 @@ void loadEEPROM() { // Read setting values from EEPROM (abnormal values will be 
   if (p_range > 16) ++error;
   *((byte *)&count) = EEPROM.read(p++);     // count low
   *((byte *)&count + 1) = EEPROM.read(p++); // count high
-  if (count > 256) ++error;
+  if (count > 1023) ++error;
   dds_mode = EEPROM.read(p++);              // DDS mode
   wave_id = EEPROM.read(p++);               // DDS wave id
   if (wave_id >= wave_num) ++error;

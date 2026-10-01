@@ -13,6 +13,7 @@
 
 #include <driver/dac.h>
 #include "soc/sens_reg.h"
+#define DDSPin 25
 #include "soc/rtc.h"
 
 extern const unsigned char sine256[], saw256[], revsaw256[], triangle[], rect256[];
@@ -30,7 +31,6 @@ const char Wavename[][5] PROGMEM = {"Sine", "Saw", "RSaw", "Tri", "Rect",
 const byte wave_num = (sizeof(wavetable) / sizeof(&sine256));
 long ifreq = 12255; // frequency * 100 for 0.01Hz resolution
 byte wave_id = 0;
-#define DDSPin 25
 
 // const double refclk=5000.0;  // 5kHz
 const double refclk=5000.0;     // measured

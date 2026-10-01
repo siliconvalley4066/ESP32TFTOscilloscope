@@ -894,7 +894,7 @@ void menu_sw(byte sw) {
       if (pulse_mode) {
         if ((256 - duty) > diff) duty += diff;
       } else {
-        pulse_start();
+        setduty();
       }
       update_frq(0);
       pulse_mode = true;
@@ -904,7 +904,7 @@ void menu_sw(byte sw) {
       } else {
         pulse_start();
       }
-      update_frq(0);
+      setduty();
       pulse_mode = true;
     }
     break;

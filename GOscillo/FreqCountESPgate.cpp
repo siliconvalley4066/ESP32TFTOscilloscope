@@ -1,12 +1,20 @@
 #if !defined(ARDUINO_NOLOGO_ESP32C3_SUPER_MINI) && !defined(ARDUINO_ESP32C3_DEV) && !defined(ARDUINO_WAVESHARE_ESP32_C3_ZERO)
 /*
-   ESP32 Frequency Counter Library Version 1.02
+   ESP32 Frequency Counter Library Version 1.03
    The max frequency is 40MHz at 80MHz APB clock.
    Stable and accurate pulse counting by hardware gating.
    Copyright (c) 2026, Siliconvalley4066
    Licenced under the GNU GPL Version 3.0
 */
 #include "FreqCountESPgate.h"
+#include "driver/ledc.h"
+#include "hal/ledc_hal.h"
+
+#define LEDC_CHANNEL LEDC_CHANNEL_0
+#define LEDC_TIMER   LEDC_TIMER_0
+#define PWM_CHANNEL  LEDC_CHANNEL_7
+#define PWM_TIMER    LEDC_TIMER_3
+#define PWM_MODE     LEDC_HIGH_SPEED_MODE
 
 volatile uint32_t FreqCountESPgate::count_ovf;
 volatile uint32_t FreqCountESPgate::fcount;
@@ -82,13 +90,34 @@ void FreqCountESPgate::setupPcnt(uint8_t fpin, uint8_t gpin) {
 }
 
   // LEDC settings for gate signal
-bool FreqCountESPgate::setupLedc(uint32_t freq, uint8_t resolution, uint32_t duty) {
-  ledcSetClockSource((ledc_clk_cfg_t) LEDC_APB_CLK);
-  if (!ledcAttachChannel(gate_pin, 8, 14, LEDC_CHANNEL_7))
-    return false;
-  ledcChangeFrequency(gate_pin, freq, resolution);
-  vTaskDelay(2000);  // adhoc experiment reduce Guru Meditation Error since 3.3.4
-  ledcWrite(gate_pin, duty);
+bool FreqCountESPgate::setupLedc(uint32_t freq, ledc_timer_bit_t resolution, uint32_t duty) {
+  ledc_timer_config_t timer_conf = {
+      .speed_mode       = PWM_MODE,
+      .duty_resolution  = resolution,
+      .timer_num        = LEDC_TIMER,
+      .freq_hz          = freq, // temporal value
+      .clk_cfg          = LEDC_USE_APB_CLK
+  };
+  ledc_timer_config(&timer_conf);
+
+  ledc_channel_config_t ch_conf = {
+      .gpio_num       = gate_pin,
+      .speed_mode     = PWM_MODE,
+      .channel        = LEDC_CHANNEL,
+      .intr_type      = LEDC_INTR_DISABLE,
+      .timer_sel      = LEDC_TIMER,
+      .duty           = duty, // 1000ms or 100ms
+      .hpoint         = 0
+  };
+  ledc_channel_config(&ch_conf);
+
+  vTaskDelay(10); // to avoid Guru Meditation Error
+  ledc_hal_context_t ledc_hal;
+  ledc_hal_init(&ledc_hal, PWM_MODE);
+  vTaskDelay(10); // to avoid Guru Meditation Error
+  uint32_t div_q10_8 = 625 << 8; // 1 tic 1/128000 sec
+  ledc_hal_set_clock_divider(&ledc_hal, LEDC_TIMER, div_q10_8);
+  vTaskDelay(10); // to avoid Guru Meditation Error
   attachInterrupt(gate_pin, onLedc, FALLING);
   return true;
 }
@@ -102,9 +131,9 @@ bool FreqCountESPgate::begin(uint16_t msec, uint8_t fpin, uint8_t gpin) {
   gate_pin = gpin;
   setupPcnt(fpin, gpin);
   if (msec > 500) // 1sec
-    status = setupLedc(1, 17, 122880);  // 1Hz, 17bit, (1<<17)*15/16
+    status = setupLedc(1, LEDC_TIMER_17_BIT, 128000);  // 1Hz, 17bit, 1000ms
   else            // 0.1sec
-    status = setupLedc(8, 14, 12288);   // 8Hz, 14bit, (1<<14)*3/4
+    status = setupLedc(8, LEDC_TIMER_14_BIT, 12800);   // 8Hz, 14bit, 100ms
   if (!status) return false;
   const esp_timer_create_args_t timer_args = {
       .callback = &onDelay,
@@ -119,9 +148,9 @@ uint32_t FreqCountESPgate::read() {
   uint32_t result;
   fflag = false;
   if (FreqCountESPgate::gate_time > 500)
-    result = (((long long)fcount << 17) * 1) / 122880;
+    result = fcount;
   else
-    result = (((long long)fcount << 14) * 8) / 12288;
+    result = fcount * 10;
   return result;
 }
 
@@ -143,14 +172,12 @@ void FreqCountESPgate::end() {
   pcnt_intr_disable(PCNT_UNIT);
   pcnt_isr_unregister(pcntisrHandle);
   detachInterrupt(gate_pin);
-  ledcDetach(gate_pin);
+  // ledc_set_duty(PWM_MODE, LEDC_CHANNEL, 0);
+  // ledc_update_duty(PWM_MODE, LEDC_CHANNEL);
+  // ledc_timer_pause(PWM_MODE, LEDC_TIMER);
   esp_timer_stop(delay_int);
   esp_timer_delete(delay_int);
 }
-
-// double pulse_frq(void) {  // 4.768Hz <= pulse_frq <= 40MHz
-//   return(80.0e6 / (1 << p_range) * count / 256.0);
-// }
 
 void FreqCountESPgate::pulse_test(uint8_t gpio_pin, uint32_t freq) {
   freq = constrain(freq, 1, 40000000);
@@ -159,11 +186,39 @@ void FreqCountESPgate::pulse_test(uint8_t gpio_pin, uint32_t freq) {
     lfreq >>= 1;
   }
   resolution = constrain(resolution, 1, SOC_LEDC_TIMER_BIT_WIDTH);
+  // Serial.print("resolution "); Serial.println(resolution);
   pinMode(gpio_pin, OUTPUT);
-  ledcSetClockSource((ledc_clk_cfg_t) LEDC_APB_CLK);
-  ledcAttach(gpio_pin, 20000000, 2);
-  ledcChangeFrequency(gpio_pin, freq, resolution);
-  ledcWrite(gpio_pin, 1 << (resolution - 1)); // duty 50%
+
+  // ledcAttachChannel(gpio_pin, 20000000, 2, PWM_CHANNEL);
+  // ledcChangeFrequency(gpio_pin, freq, resolution);
+  // ledcWrite(gpio_pin, 1 << (resolution - 1)); // duty 50%
+
+  ledc_timer_config_t timer_conf = {
+      .speed_mode       = PWM_MODE,
+      .duty_resolution  = (ledc_timer_bit_t)resolution,
+      .timer_num        = PWM_TIMER,
+      .freq_hz          = freq, // temporal value
+      .clk_cfg          = LEDC_USE_APB_CLK
+  };
+  ledc_timer_config(&timer_conf);
+  vTaskDelay(10); // to avoid Guru Meditation Error
+
+  ledc_channel_config_t ch_conf = {
+      .gpio_num       = gpio_pin,
+      .speed_mode     = PWM_MODE,
+      .channel        = PWM_CHANNEL,
+      .intr_type      = LEDC_INTR_DISABLE,
+      .timer_sel      = PWM_TIMER,
+      .duty           = 1 << (resolution - 1),
+      .hpoint         = 0
+  };
+  ledc_channel_config(&ch_conf);
+  vTaskDelay(10); // to avoid Guru Meditation Error
+
+  // ledc_hal_context_t ledc_hal;
+  // ledc_hal_init(&ledc_hal, PWM_MODE);
+  // uint32_t div_q10_8 = (80000000LL << (8 - resolution)) / freq;
+  // ledc_hal_set_clock_divider(&ledc_hal, PWM_TIMER, div_q10_8);
 }
 
 FreqCountESPgate FreqCount;
