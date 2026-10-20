@@ -4,15 +4,21 @@
 #include <WebSocketsServer.h> // arduinoWebSockets library
 #include <ESPmDNS.h>
 
+// #define WIFI_ACCESS_POINT
+#if !defined(WIFI_ACCESS_POINT) && !defined(WIFI_STATION)
+#include <WiFiManager.h>
+WiFiManager wm;
+#endif
+
 WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 
 // WiFi information
-//#define WIFI_ACCESS_POINT
-#ifndef WIFI_ACCESS_POINT
+#ifdef WIFI_STATION
 const char* ssid = "XXXX";
 const char* pass = "YYYY";
-#else
+#endif
+#ifdef WIFI_ACCESS_POINT
 const char* apssid = "ESP32OSCILLO";
 const char* password = "12345678";
 const IPAddress ip(192, 168, 4, 1);
@@ -38,6 +44,8 @@ void handleRoot(void) {
     handle_ch2_mode();
     handle_ch_offset2();
     handle_wave_fft();
+    handle_time_mag();
+    handle_mag_pos();
     handle_pwm_onoff();
     handle_dds_onoff();
     handle_wave_select();
@@ -51,145 +59,137 @@ void handleRoot(void) {
 }
 
 void handle_ch1_mode() {
+  if (!server.hasArg("ch1_mode")) return;
   String val = server.arg("ch1_mode");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "chon") {
-      wch0_mode = MODE_ON;      // CH1 ON
-    } else if (val == "chinv") {
-      wch0_mode = MODE_INV;     // CH1 INV
-    } else if (val == "choff") {
-      wch0_mode = MODE_OFF;     // CH1 OFF
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "chon") {
+    wch0_mode = MODE_ON;        // CH1 ON
+  } else if (val == "chinv") {
+    wch0_mode = MODE_INV;       // CH1 INV
+  } else if (val == "choff") {
+    wch0_mode = MODE_OFF;       // CH1 OFF
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_ch2_mode() {
+  if (!server.hasArg("ch2_mode")) return;
   String val = server.arg("ch2_mode");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "chon") {
-      wch1_mode = MODE_ON;      // CH2 ON
-    } else if (val == "chinv") {
-      wch1_mode = MODE_INV;     // CH2 INV
-    } else if (val == "choff") {
-      wch1_mode = MODE_OFF;     // CH2 OFF
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "chon") {
+    wch1_mode = MODE_ON;        // CH2 ON
+  } else if (val == "chinv") {
+    wch1_mode = MODE_INV;       // CH2 INV
+  } else if (val == "choff") {
+    wch1_mode = MODE_OFF;       // CH2 OFF
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_rate() {
+  if (!server.hasArg("rate")) return;
   String val = server.arg("rate");
-  if (val != NULL) {
-    int nrate = rate;
-    // Serial.println(val);
-    if (val == "1") {
-      wrate = 3;    // fast
-      if (rate > RATE_MIN) nrate = rate - 1;
-    } else if (val == "0") {
-      wrate = 7;    // slow
-      if (rate < RATE_MAX) nrate = rate + 1;
-    }
-    String strrate;
-    strrate = Rates[nrate];
-    server.send(200, "text/html", strrate+((nrate > RATE_DMA)?"":((nrate > RATE_MAG)?" DMA":" MAG")));  // response 200, send OK
+  int nrate = rate;
+  // Serial.println(val);
+  if (val == "1") {
+    wrate = 3;    // fast
+    if (rate > RATE_MIN) nrate = rate - 1;
+  } else if (val == "0") {
+    wrate = 7;    // slow
+    if (rate < RATE_MAX) nrate = rate + 1;
   }
+  String strrate;
+  strrate = Rates[nrate];
+  server.send(200, "text/html", strrate+((nrate > RATE_DMA)?"":((nrate > RATE_MAG)?" DMA":" MAG")));  // response 200, send OK
 }
 
 void handle_range1() {
+  if (!server.hasArg("range1")) return;
   String val = server.arg("range1");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "1") {
-      updown_ch0range(3);  // range1 up
-    } else if (val == "0") {
-      updown_ch0range(7);  // range1 down
-    }
-    String ch1acdc;
-    if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
-      ch1acdc = "AC ";
-    else
-      ch1acdc = "DC ";
-    server.send(200, "text/html", ch1acdc + Ranges[range0]);  // response 200, send OK
+  // Serial.println(val);
+  if (val == "1") {
+    updown_ch0range(3);  // range1 up
+  } else if (val == "0") {
+    updown_ch0range(7);  // range1 down
   }
+  String ch1acdc;
+  if (digitalRead(CH0DCSW) == LOW)    // DC/AC input
+    ch1acdc = "AC ";
+  else
+    ch1acdc = "DC ";
+  server.send(200, "text/html", ch1acdc + Ranges[range0]);  // response 200, send OK
 }
 
 void handle_range2() {
+  if (!server.hasArg("range2")) return;
   String val = server.arg("range2");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "1") {
-      updown_ch1range(3);  // range2 up
-    } else if (val == "0") {
-      updown_ch1range(7);  // range2 down
-    }
-    String ch2acdc;
-    if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
-      ch2acdc = "AC ";
-    else
-      ch2acdc = "DC ";
-    server.send(200, "text/html", ch2acdc + Ranges[range1]);  // response 200, send OK
+  // Serial.println(val);
+  if (val == "1") {
+    updown_ch1range(3);  // range2 up
+  } else if (val == "0") {
+    updown_ch1range(7);  // range2 down
   }
+  String ch2acdc;
+  if (digitalRead(CH1DCSW) == LOW)    // DC/AC input
+    ch2acdc = "AC ";
+  else
+    ch2acdc = "DC ";
+  server.send(200, "text/html", ch2acdc + Ranges[range1]);  // response 200, send OK
 }
 
 void handle_trigger_mode() {
+  if (!server.hasArg("trigger_mode")) return;
   String val = server.arg("trigger_mode");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "0") {
-      trig_mode = 0;  // Auto
-    } else if (val == "1") {
-      trig_mode = 1;  // Normal
-    } else if (val == "2") {
-      trig_mode = 2;  // Scan
-    } else if (val == "3") {
-      trig_mode = 3;  // Once
-    }
-    if (trig_mode != TRIG_ONE)
-      Start = true;
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "0") {
+    trig_mode = 0;  // Auto
+  } else if (val == "1") {
+    trig_mode = 1;  // Normal
+  } else if (val == "2") {
+    trig_mode = 2;  // Scan
+  } else if (val == "3") {
+    trig_mode = 3;  // Once
   }
+  if (trig_mode != TRIG_ONE)
+    Start = true;
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_trig_ch() {
+  if (!server.hasArg("trig_ch")) return;
   String val = server.arg("trig_ch");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "ch1") {
-      trig_ch = ad_ch0;
-    } else if (val == "ch2") {
-      trig_ch = ad_ch1;
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "ch1") {
+    trig_ch = ad_ch0;
+  } else if (val == "ch2") {
+    trig_ch = ad_ch1;
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_trig_edge() {
+  if (!server.hasArg("trig_edge")) return;
   String val = server.arg("trig_edge");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "down") {
-      trig_edge = TRIG_E_DN;  // trigger fall
-    } else if (val == "up") {
-      trig_edge = TRIG_E_UP;  // trigger rise
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "down") {
+    trig_edge = TRIG_E_DN;  // trigger fall
+  } else if (val == "up") {
+    trig_edge = TRIG_E_UP;  // trigger rise
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_trig_level() {
+  if (!server.hasArg("trig_lvl")) return;
   String val = server.arg("trig_lvl");
-  if (val != NULL) {
-    // Serial.println(val);
-    trig_lv = val.toInt();
-    set_trigger_ad();
-    server.send(200, "text/html", "OK");  // response 200, send OK
-  }
+  // Serial.println(val);
+  trig_lv = val.toInt();
+  set_trigger_ad();
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_run_hold() {
+  if (!server.hasArg("run_hold")) return;
   String val = server.arg("run_hold");
   if (val == "run") {
     // Serial.println(val);
@@ -249,81 +249,115 @@ void handle_ch_offset2() {
 }
 
 void handle_wave_fft() {
+  if (!server.hasArg("wavefft")) return;
   String val = server.arg("wavefft");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "wave") {
-      wfft = false;
-    } else if (val == "fft") {
-      wfft = true;
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "wave") {
+    wfft = false;
+  } else if (val == "fft") {
+    wfft = true;
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_pwm_onoff() {
+  if (!server.hasArg("pwm_on")) return;
   String val = server.arg("pwm_on");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "on") {
-      update_frq(0);
-      pulse_start();
-      pulse_mode = true;
-    } else if (val == "off") {
-      pulse_close();
-      pulse_mode = false;
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "on") {
+    update_frq(0);
+    pulse_start();
+    pulse_mode = true;
+  } else if (val == "off") {
+    pulse_close();
+    pulse_mode = false;
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_dds_onoff() {
+  if (!server.hasArg("dds_on")) return;
   String val = server.arg("dds_on");
-  if (val != NULL) {
-    // Serial.println(val);
-    if (val == "on") {
-      wdds = true;
-    } else if (val == "off") {
-      wdds = false;
-    }
-    server.send(200, "text/html", "OK");  // response 200, send OK
+  // Serial.println(val);
+  if (val == "on") {
+    wdds = true;
+  } else if (val == "off") {
+    wdds = false;
   }
+  server.send(200, "text/html", "OK");  // response 200, send OK
 }
 
 void handle_wave_select() {
+  if (!server.hasArg("wave_select")) return;
   String val = server.arg("wave_select");
-  if (val != NULL) {
-    // Serial.println(val);
-    server.send(200, "text/html", "OK");  // response 200, send OK
-    set_wave(val.toInt());
-  }
+  // Serial.println(val);
+  server.send(200, "text/html", "OK");  // response 200, send OK
+  set_wave(val.toInt());
 }
 
 void handle_dds_freq() {
+  if (!server.hasArg("dfreq")) return;
   String val = server.arg("dfreq");
-  if (val != NULL) {
-    // Serial.println(val);
-    server.send(200, "text/html", String(set_freq((float)val.toFloat()), 2)); // response 200, send OK
-  }
+  // Serial.println(val);
+  server.send(200, "text/html", String(set_freq((float)val.toFloat()), 2)); // response 200, send OK
 }
 
 void handle_pwm_duty() {
+  if (!server.hasArg("duty")) return;
   String val = server.arg("duty");
-  if (val != NULL) {
-    // Serial.println(val);
-    duty = constrain(round(val.toFloat() * 2.56), 0, 255);
-    setduty();
-    server.send(200, "text/html", String(duty*100.0/256.0, 1)); // response 200, send OK
-  }
+  // Serial.println(val);
+  duty = constrain(round(val.toFloat() * 2.56), 0, 255);
+  setduty();
+  server.send(200, "text/html", String(duty*100.0/256.0, 1)); // response 200, send OK
 }
 
 void handle_pwm_freq() {
+  if (!server.hasArg("wfreq")) return;
   String val = server.arg("wfreq");
-  if (val != NULL) {
-    // Serial.println(val);
-    set_pulse_frq(val.toFloat());
-    server.send(200, "text/html", String(pulse_frq())); // response 200, send OK
+  // Serial.println(val);
+  set_pulse_frq(val.toFloat());
+  server.send(200, "text/html", String(pulse_frq())); // response 200, send OK
+}
+
+void handle_time_mag() {
+  if (!server.hasArg("time_mag")) {
+    // server.send(400, "text/plain", "Missing time_mag");
+    return;
   }
+  String val = server.arg("time_mag");
+  int tm = val.toInt();
+  if (tm != 1 && tm != 2 && tm != 5 && tm != 10) {
+    server.send(400, "text/plain", "Invalid time_mag");
+    return;
+  }
+  time_mag = (byte)tm;
+  int maxpos = 0;
+  if (time_mag > 1) {
+    // Empirical: ensures mag() does not read beyond buffer end for factors 2/5/10
+    maxpos = SAMPLES - SAMPLES / time_mag - 6;
+    if (maxpos < 0) maxpos = 0;
+  }
+  if (mag_pos > maxpos) mag_pos = maxpos;
+  server.send(200, "text/html", "OK");
+}
+
+void handle_mag_pos() {
+  if (!server.hasArg("mag_pos")) {
+    // server.send(400, "text/plain", "Missing mag_pos");
+    return;
+  }
+  String v = server.arg("mag_pos");
+  int p = v.toInt();
+  if (p < 0) p = 0;
+  int maxpos = 0;
+  if (time_mag > 1) {
+    // Empirical: ensures mag() does not read beyond buffer end for factors 2/5/10
+    maxpos = SAMPLES - SAMPLES / time_mag - 6;
+    if (maxpos < 0) maxpos = 0;
+  }
+  if (p > maxpos) p = maxpos;
+  mag_pos = p;
+  server.send(200, "text/html", String(mag_pos));
 }
 
 void index_html(void * pvParameters) {
@@ -353,10 +387,11 @@ ws.onmessage = function(evt) {
   var pichX = 50;
   var cnstH= groundH/4096;
   var pichH = groundH/8;
-  const fftsamples = 128;
-  const displng = 300;
+  const fftsamples = %FFTSAMPLE%;
+  const displng = %SAMPLES%;
   const dotpich = (groundW - 1) / displng;
   const fftpich = 512 / fftsamples;
+  const hcenter = Math.floor(groundW / pichX / 2);
   ctx.beginPath();
   ctx.save();
   ctx.strokeStyle = "rgb(128,128,128)";
@@ -375,8 +410,8 @@ ws.onmessage = function(evt) {
     ctx.moveTo(groundX0, groundY0-i*pichH);
     ctx.lineTo(groundW, groundY0-i*pichH);
     for (var j=10; j<50; j=j+10){
-      ctx.moveTo(6*pichX-5, groundY0-i*pichH-j);
-      ctx.lineTo(6*pichX+5, groundY0-i*pichH-j);
+      ctx.moveTo(hcenter*pichX-5, groundY0-i*pichH-j);
+      ctx.lineTo(hcenter*pichX+5, groundY0-i*pichH-j);
     }
   }
   ctx.moveTo(groundX0, groundY0-i*pichH);
@@ -519,6 +554,15 @@ window.addEventListener("load", function () {
       elements.item(i).checked = true;
     }
   }
+  const magSlider = document.getElementById("mag_pos");
+  const magLabel = document.getElementById("mag_pos_label");
+  if (magSlider && magLabel) {
+    magSlider.value = "%MAGPOS%";
+    magLabel.textContent = magSlider.value;
+    magSlider.addEventListener("input", function () {
+      magLabel.textContent = this.value;
+    });
+  }
 });
 async function postform(frameid) {
   try {
@@ -641,10 +685,160 @@ async function post_duty() {
   } catch (error) { console.log(error); }
 }
 </script>
+
+<script type="text/javascript">
+window.addEventListener("load", function () {
+  const initTimeMag = '%TIMEMAG%';
+  const radios = document.getElementsByName('time_mag');
+  for (let r of radios) {
+    if (r.value === initTimeMag) r.checked = true;
+  }
+  const magSlider = document.getElementById('mag_pos');
+  const magLabel = document.getElementById('mag_pos_label');
+  if (magSlider && magLabel) {
+    magSlider.value = '%MAGPOS%';
+    magLabel.textContent = magSlider.value;
+  }
+  updateMagSliderMax();
+});
+
+// DEBOUNCE settings
+const DEBOUNCE_MS = 120;
+let magDebounceTimer = null;
+
+async function post_mag_pos(value) {
+  try {
+    const val = String(value);
+    const form = new FormData();
+    form.append('mag_pos', val);
+    const response = await fetch("/", { method: "POST", body: form });
+    if (response.ok) {
+      const text = await response.text();
+      // Align labels/sliders assuming the server returns clamped values
+      const clamped = String(text);
+      const slider = document.getElementById('mag_pos');
+      const label = document.getElementById('mag_pos_label');
+      if (label) label.textContent = clamped;
+      if (slider) slider.value = clamped;
+      console.log('post_mag_pos ok ->', clamped);
+    } else {
+      console.warn('post_mag_pos status', response.status);
+    }
+  } catch (err) {
+    console.error('post_mag_pos error', err);
+  }
+}
+
+// Send `time_mag` to the server (radio switch)
+async function post_time_mag() {
+  try {
+    const radios = document.getElementsByName("time_mag");
+    let val = "1"; // default 1（x1）
+    for (let i = 0; i < radios.length; i++) {
+      if (radios[i].checked) {
+        val = radios[i].value;
+        break;
+      }
+    }
+
+    const form = new FormData();
+    form.append("time_mag", val);
+
+    const response = await fetch("/", {
+      method: "POST",
+      body: form
+    });
+
+    if (response.ok) {
+      // Recalculate the slider's `max` value after `time_mag` is updated
+      updateMagSliderMax();
+    } else {
+      console.warn('post_time_mag status', response.status);
+    }
+  } catch (error) {
+    console.log(error);
+  }
+}
+
+// Register events on the slider after the DOM is ready (with debouncing)
+(function(){
+  const SLIDER_ID = 'mag_pos';
+  const LABEL_ID = 'mag_pos_label';
+
+  function setup() {
+    const slider = document.getElementById(SLIDER_ID);
+    const label = document.getElementById(LABEL_ID);
+    if (!slider || !label) {
+      console.error('cannot find mag_pos or mag_pos_label.');
+      return;
+    }
+    label.textContent = slider.value;
+
+    // Update labels immediately + send to server with debouncing
+    slider.addEventListener('input', function () {
+      const v = this.value;
+      label.textContent = v;
+      if (magDebounceTimer) clearTimeout(magDebounceTimer);
+      magDebounceTimer = setTimeout(() => {
+        post_mag_pos(v);
+        magDebounceTimer = null;
+      }, DEBOUNCE_MS);
+    });
+
+    // change: Ensure transmission upon completion of the operation
+    slider.addEventListener('change', function () {
+      const v = this.value;
+      label.textContent = v;
+      if (magDebounceTimer) { clearTimeout(magDebounceTimer); magDebounceTimer = null; }
+      post_mag_pos(v);
+    });
+
+    console.log('mag_pos handlers registered');
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(setup, 0);
+  } else {
+    window.addEventListener('DOMContentLoaded', setup);
+  }
+})();
+
+// update slider max according to time_mag, using SAMPLES injected by server as %SAMPLES%
+function updateMagSliderMax() {
+  const radios = document.getElementsByName('time_mag');
+  let tm = 1;
+  for (let r of radios) {
+    if (r.checked) { tm = parseInt(r.value); break; }
+  }
+
+  // SAMPLES must be injected server-side: e.g. const samples = 128;
+  const samples = %SAMPLES%;
+
+  let maxpos = 0;
+  if (tm > 1) {
+    // Empirical: ensures mag() does not read beyond buffer end for factors 2/5/10
+    maxpos = samples - Math.floor(samples / tm) - 6;
+    if (maxpos < 0) maxpos = 0;
+  }
+
+  const slider = document.getElementById('mag_pos');
+  if (slider) {
+    slider.max = String(maxpos);
+    if (parseInt(slider.value) > maxpos) {
+      slider.value = String(maxpos);
+      // Once the value has been clamped, notify the server (if necessary)
+      post_mag_pos(slider.value);
+    }
+    const lbl = document.getElementById('mag_pos_label');
+    if (lbl) lbl.textContent = slider.value;
+  }
+}
+</script>
+
 <body>
-<h3>ESP32 Web Oscilloscope ver. 1.38</h3>
+<h3>ESP32 Web Oscilloscope ver. 1.43</h3>
 <div style='float: left; margin-right: 10px'>
-<canvas id='cvs1' width='601' height='401' class='float'></canvas></div>
+<canvas id='cvs1' width='%WAVEWIDTH%' height='401' class='float'></canvas></div>
 <form id='rate0'>Rate: <label id="rate_area">%RATE% %REALDMA%</label>
   <button type="button" name='rate' value='1' onclick='postrate(this.value)'>FAST</button>
   <button type="button" name='rate' value='0' onclick='postrate(this.value)'>SLOW</button></form>
@@ -675,7 +869,7 @@ async function post_duty() {
 <label><input type="radio" name="trig_edge" value="down">DOWN</label>
 </form></div>
 <form id='trigger_lvl' oninput='postform(this.id)'><label>Trigger Level</label>
-<input type="range" name="trig_lvl" min="0" max="199" step="1" value="%TRIGGLEVEL%"></form>
+<input type="range" name="trig_lvl" min="0" max="%TRIGMAX%" step="1" value="%TRIGGLEVEL%"></form>
 <div>
 <form id='f_run_hold' onchange='postform(this.id)'>
 <label><input type="radio" name="run_hold" value="run">RUN</label>
@@ -723,13 +917,13 @@ async function post_duty() {
 
 <div>
 <label>Pulse Frequency 
-<input type="number" id='mfreq' name="wfreq" size="8" value="%PULSEFREQ%" onchange='post_wfreq()' />
+<input type="number" id='mfreq' name="wfreq" size="8" value="%PULSEFREQ%" style="width:14ch;" onchange='post_wfreq()' />
 Hz</label>
 </div>
 
 <div>
 <label>Pulse Duty 
-<input type="number" id='pduty' name="duty" size="4" value="%PULSEDUTY%" onchange='post_duty()' />
+<input type="number" id='pduty' name="duty" size="4" value="%PULSEDUTY%" style="width:7ch;" onchange='post_duty()' />
 %</label>
 </div>
 
@@ -777,6 +971,22 @@ Hz</label>
 
 <label>CH1 frequency: </label><label id="ch1_freq"></label>
 
+<div>
+  <form id='time_mag_form' onchange='post_time_mag()'>
+    <label>Time Magnify:</label>
+    <label><input type="radio" name="time_mag" value="1">x1</label>
+    <label><input type="radio" name="time_mag" value="2">x2</label>
+    <label><input type="radio" name="time_mag" value="5">x5</label>
+    <label><input type="radio" name="time_mag" value="10">x10</label>
+  </form>
+  <form id='mag_pos_form'>
+    <label>Mag Position:
+      <input type="range" id="mag_pos" name="mag_pos" min="0" max="120" step="1" value="%MAGPOS%" style="width:90%;max-width:640px;">
+    </label>
+    <span id="mag_pos_label">%MAGPOS%</span>
+  </form>
+</div>
+
 </body>
 </html>
 )=====";
@@ -823,7 +1033,16 @@ Hz</label>
   html.replace("%CH2OFFSET%", String((ch1_off * VREF[range1]) / 4096));
   html.replace("%PULSEDUTY%", String(duty*100.0/256.0, 1));
   html.replace("%PULSEFREQ%", String(pulse_frq()));
-
+  html.replace("%TIMEMAG%", String(time_mag));
+  html.replace("%MAGPOS%", String(mag_pos));
+  html.replace("%SAMPLES%", String(SAMPLES));
+  html.replace("%FFTSAMPLE%", String(FFT_N / 2));
+  html.replace("%TRIGMAX%", String(TRIG_MAX));
+  if (SAMPLES < 300) {
+    html.replace("%WAVEWIDTH%", String(5 * SAMPLES + 1));
+  } else {
+    html.replace("%WAVEWIDTH%", String(2 * SAMPLES + 1));
+  }
   // send the HTML
   server.send(200, "text/html", html);
 //  vTaskDelete(NULL);
@@ -843,11 +1062,21 @@ void setup1(void * pvParameters) {
   delay(100);
   WiFi.softAPConfig(ip, ip, subnet);
   IPAddress myIP = WiFi.softAPIP();
-#else
+#elif defined(WIFI_STATION)
 // Connect to the WiFi access point
   WiFi.begin(ssid, pass);
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
+  }
+#else
+  if (digitalRead(DOWNPIN) == LOW) {  //reset saved settings if mode button is pressed and hold during startup
+    Serial.println("button pressed on startup, WIFI settings will be reset");
+    wm.resetSettings();
+  }
+  bool res = wm.autoConnect();
+  if (!res) {
+    Serial.println("Failed to connect. Restarting...");
+    ESP.restart();
   }
 #endif
   // print out the IP address of the ESP32

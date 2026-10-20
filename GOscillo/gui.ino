@@ -114,7 +114,7 @@ void CheckTouch() {
     case SEL_TGLVL:
       if (x > (LCD_WIDTH / 2)) {  // trigger level +
         draw_trig_level(BGCOLOR); // erase old trig_lv mark
-        if (trig_lv < LCD_YMAX) {
+        if (trig_lv < TRIG_MAX) {
           trig_lv ++;
           set_trigger_ad();
         }
@@ -828,7 +828,7 @@ void menu_sw(byte sw) {
   case SEL_TGLVL:   // trigger level
     if (sw == BTN_RIGHT) {        // trigger level +
       draw_trig_level(BGCOLOR);   // erase old trig_lv mark
-      if (trig_lv < LCD_YMAX) {
+      if (trig_lv < TRIG_MAX) {
         trig_lv ++;
         set_trigger_ad();
       }

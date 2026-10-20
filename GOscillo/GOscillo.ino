@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.14
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.15
  * for esp32 by Espressif Systems version 3.3.11
  * The max software loop sampling rates are 5ksps with 2 channels.
  * In the Continuous DMA mode, it can be set up to 125ksps with 2 channels and 250ksps with single channel.
@@ -59,6 +59,7 @@ const int SAMPLES = 300;
 const int NSAMP = 1024;
 const int DISPLNG = 300;
 const int DOTS_DIV = 25;
+const int TRIG_MAX = 199;
 const int XOFF = 10;
 const int YOFF = 20;
 const int ad_ch0 = ADC1_CHANNEL_6;  // Analog 34 pin for channel 0
@@ -465,7 +466,8 @@ void scaleDataArray(byte ad_ch, int trig_point)
     case 2:
     case 5:
     case 10:
-      mag_pos = constrain(mag_pos, 0, SAMPLES - SAMPLES/mag_mag - 5);
+      // Empirical: ensures mag() does not read beyond buffer end for factors 2/5/10
+      mag_pos = constrain(mag_pos, 0, SAMPLES - SAMPLES/mag_mag - 6);
       mag(data[sample+ch], mag_mag, mag_pos);   // magnify timebase for display
 #ifndef NOWEB
       mag(rdata, mag_mag, mag_pos);             // magnify timebase for WEB
@@ -1006,7 +1008,7 @@ void loadEEPROM() { // Read setting values from EEPROM (abnormal values will be 
   trig_mode = EEPROM.read(p++);             // trig_mode
   if (trig_mode > TRIG_SCAN) ++error;
   trig_lv = EEPROM.read(p++);               // trig_lv
-  if (trig_lv > LCD_YMAX) ++error;
+  if (trig_lv > TRIG_MAX) ++error;
   trig_edge = EEPROM.read(p++);             // trig_edge
   if (trig_edge > 1) ++error;
   trig_ch = EEPROM.read(p++);               // trig_ch
