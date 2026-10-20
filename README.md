@@ -31,6 +31,7 @@ Libraries:<br>
 TFT_eSPI 2.5.0<br>
 arduinoFFT by Enrique Condes 2.0.0<br>
 WebSockets by Markus Sattler version 2.7.2<br>
+WiFiManager by tzapu 2.0.17<br>
 
 You need to customize the TFT_espi library by referring to the TFT_espi folder here.
 
@@ -39,15 +40,10 @@ You need to customize the TFT_espi library by referring to the TFT_espi folder h
 50usec/div range is 2 times magnification at 250ksps.<br>
 The magnification applies sin(x)/x interpolation.
 
-For WEB operations, edit the source code WebTask.ino and replace your Access Point and the password.
-<pre>
-Edit:
-const char* ssid = "XXXX";
-const char* pass = "YYYY";
-To:
-const char* ssid = "Your Access Point";
-const char* pass = "Your Password";
-</pre>
+WiFi Manager is used for web-based configuration.
+For the initial setup only, connect to the access point named "ESP32_XXXXXXXX" (where "XXXXXXXX" is a unique chip ID) and navigate to "192.168.4.1".
+From there, enter the SSID and password for your target WiFi network. Once configured, no further setup is required.
+If you wish to change these settings, hold down the "DOWN" button while the device is starting up.
 
 For WEB only display, in case no LCD display is connected, un-comment
 <pre>
