@@ -1,6 +1,6 @@
 #if !defined(ARDUINO_NOLOGO_ESP32C3_SUPER_MINI) && !defined(ARDUINO_ESP32C3_DEV) && !defined(ARDUINO_WAVESHARE_ESP32_C3_ZERO)
 /*
-   ESP32 Frequency Counter Library Version 1.05
+   ESP32 Frequency Counter Library Version 1.06
    The max frequency is 40MHz at 80MHz APB clock.
    Stable and accurate pulse counting by hardware gating.
    Copyright (c) 2026, Siliconvalley4066
@@ -152,15 +152,26 @@ uint8_t FreqCountESPgate::available() {
 }
 
 void FreqCountESPgate::end() {
-  mcpwm_timer_start_stop(timer_handle, MCPWM_TIMER_STOP_FULL);
-  mcpwm_timer_disable(timer_handle);
-  mcpwm_del_timer(timer_handle);
-  pcnt_unit_stop(FreqCountESPgate::pcnt_unit);
-  pcnt_unit_disable(FreqCountESPgate::pcnt_unit);
-  pcnt_del_unit(FreqCountESPgate::pcnt_unit);
   detachInterrupt(gate_pin);
   esp_timer_stop(delay_int);
   esp_timer_delete(delay_int);
+  pcnt_unit_stop(pcnt_unit);
+  pcnt_unit_disable(pcnt_unit);
+  pcnt_del_channel(pcnt_chan);
+  pcnt_del_unit(pcnt_unit);
+  mcpwm_timer_start_stop(timer_handle, MCPWM_TIMER_STOP_FULL);
+  mcpwm_timer_disable(timer_handle);
+  mcpwm_del_generator(gen_handle);
+  mcpwm_del_comparator(cmp_handle);
+  mcpwm_del_operator(oper_handle);
+  mcpwm_del_timer(timer_handle);
+  delay_int = NULL;
+  pcnt_chan = NULL;
+  pcnt_unit = NULL;
+  gen_handle = NULL;
+  cmp_handle = NULL;
+  oper_handle = NULL;
+  timer_handle = NULL;
 }
 
 void FreqCountESPgate::pulse_test(uint8_t gpio_pin, uint32_t freq) {
