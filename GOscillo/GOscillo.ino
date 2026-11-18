@@ -1,5 +1,5 @@
 /*
- * ESP32 Oscilloscope using a 320x240 TFT Version 1.15
+ * ESP32 Oscilloscope using a 320x240 TFT Version 1.16
  * for esp32 by Espressif Systems version 3.3.11
  * The max software loop sampling rates are 5ksps with 2 channels.
  * In the Continuous DMA mode, it can be set up to 125ksps with 2 channels and 250ksps with single channel.

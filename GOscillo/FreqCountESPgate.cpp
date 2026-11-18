@@ -1,144 +1,137 @@
 #if !defined(ARDUINO_NOLOGO_ESP32C3_SUPER_MINI) && !defined(ARDUINO_ESP32C3_DEV) && !defined(ARDUINO_WAVESHARE_ESP32_C3_ZERO)
 /*
-   ESP32 Frequency Counter Library Version 1.03
+   ESP32 Frequency Counter Library Version 1.05
    The max frequency is 40MHz at 80MHz APB clock.
    Stable and accurate pulse counting by hardware gating.
    Copyright (c) 2026, Siliconvalley4066
    Licenced under the GNU GPL Version 3.0
 */
 #include "FreqCountESPgate.h"
-#include "driver/ledc.h"
-#include "hal/ledc_hal.h"
 
-#define LEDC_CHANNEL LEDC_CHANNEL_0
-#define LEDC_TIMER   LEDC_TIMER_0
-#define PWM_CHANNEL  LEDC_CHANNEL_7
-#define PWM_TIMER    LEDC_TIMER_3
-#define PWM_MODE     LEDC_HIGH_SPEED_MODE
+#define PWM_CHANNEL LEDC_CHANNEL_7
+#define PWM_TIMER LEDC_TIMER_3
+#define PWM_MODE LEDC_HIGH_SPEED_MODE
 
 volatile uint32_t FreqCountESPgate::count_ovf;
 volatile uint32_t FreqCountESPgate::fcount;
 volatile bool FreqCountESPgate::fflag;
-bool FreqCountESPgate::first = true;
-esp_timer_handle_t FreqCountESPgate::delay_int = NULL;
 uint8_t FreqCountESPgate::gate_pin = TIME_GATE_PIN;
+esp_timer_handle_t FreqCountESPgate::delay_int = NULL;
+pcnt_unit_handle_t FreqCountESPgate::pcnt_unit = NULL;
+pcnt_channel_handle_t FreqCountESPgate::pcnt_chan = NULL;
+mcpwm_timer_handle_t FreqCountESPgate::timer_handle = NULL;
+mcpwm_oper_handle_t FreqCountESPgate::oper_handle = NULL;
+mcpwm_cmpr_handle_t FreqCountESPgate::cmp_handle = NULL;
+mcpwm_gen_handle_t FreqCountESPgate::gen_handle = NULL;
 
-volatile uint16_t FreqCountESPgate::pulseCountx;
-volatile uint32_t FreqCountESPgate::count_ovfx;
+portMUX_TYPE FreqCountESPgate::mux = portMUX_INITIALIZER_UNLOCKED;
 
-void IRAM_ATTR onPcnt(void *arg) {
-  uint32_t status;
-  if (pcnt_get_event_status(PCNT_UNIT, &status) != ESP_OK) return;
-  PCNT.int_clr.val = BIT(PCNT_UNIT);  // Clear the interrupt
-  PCNT.int_clr.val = BIT(PCNT_UNIT);  // Clear the interrupt again
-  if (status & PCNT_EVT_H_LIM) {
-    FreqCountESPgate::count_ovf++;  // high limit overflow
-  }
-  // if (status & PCNT_EVT_L_LIM) {
-  //   count_ovf++;  // low limit overflow
-  // }
+bool IRAM_ATTR onPcntReach(
+  pcnt_unit_handle_t unit,
+  const pcnt_watch_event_data_t *edata,
+  void *user_ctx) {
+  portENTER_CRITICAL_ISR(&FreqCountESPgate::mux);
+  FreqCountESPgate::count_ovf++;  // high limit overflow
+  portEXIT_CRITICAL_ISR(&FreqCountESPgate::mux);
+  return false;
 }
 
-void IRAM_ATTR onLedc() {
+void IRAM_ATTR onMcPwm() {
   // Start a one-shot timer to run after 100 us
-  esp_timer_start_once(FreqCountESPgate::delay_int, 100); // 100us
+  esp_timer_start_once(FreqCountESPgate::delay_int, 100);  // 100us
 }
 
-void IRAM_ATTR onDelay(void * arg) {
-  // This is called after 100 us onLedc()
-  int16_t pulseCount;
-  pcnt_get_counter_value(PCNT_UNIT, &pulseCount);
-  FreqCountESPgate::pulseCountx = pulseCount;
-  FreqCountESPgate::count_ovfx = FreqCountESPgate::count_ovf;
-  FreqCountESPgate::fcount = (uint32_t)pulseCount + FreqCountESPgate::count_ovf * 32767;
-  pcnt_counter_clear(PCNT_UNIT);
+void IRAM_ATTR onDelay(void *arg) {
+  // This is called after 100 us onMcPwm()
+  int pulseCount;
+  uint32_t ovf;
+  pcnt_unit_get_count(FreqCountESPgate::pcnt_unit, &pulseCount);
+
+  portENTER_CRITICAL(&FreqCountESPgate::mux);
+  ovf = FreqCountESPgate::count_ovf;
+  portEXIT_CRITICAL(&FreqCountESPgate::mux);
+
+  FreqCountESPgate::fcount = (uint32_t)pulseCount + ovf * 32767;
+  pcnt_unit_clear_count(FreqCountESPgate::pcnt_unit);
+
+  portENTER_CRITICAL(&FreqCountESPgate::mux);
   FreqCountESPgate::count_ovf = 0;
+  portEXIT_CRITICAL(&FreqCountESPgate::mux);
+
   FreqCountESPgate::fflag = true;
 }
 
 void FreqCountESPgate::setupPcnt(uint8_t fpin, uint8_t gpin) {
-  pcnt_config_t pcnt_config;
-  pcnt_config.pulse_gpio_num = fpin;
-  pcnt_config.ctrl_gpio_num = gpin;
-  pcnt_config.unit = PCNT_UNIT;
-  pcnt_config.channel = PCNT_CHANNEL_0;
-  pcnt_config.pos_mode = PCNT_COUNT_INC;
-  pcnt_config.neg_mode = PCNT_COUNT_DIS;
-  pcnt_config.lctrl_mode = PCNT_MODE_DISABLE;
-  pcnt_config.hctrl_mode = PCNT_MODE_KEEP;
-  pcnt_config.counter_h_lim = 32767;
-  pcnt_config.counter_l_lim = -32768;
+  pcnt_unit_config_t uc = {};
 
-  // initialize PCNT unit
-  pcnt_unit_config(&pcnt_config);
+  uc.low_limit = -32768;
+  uc.high_limit = 32767;
+  pcnt_new_unit(&uc, &FreqCountESPgate::pcnt_unit);
 
-  // noise filter
-  // pcnt_set_filter_value(PCNT_UNIT, 10);  // debounce 10 clocks
-  // pcnt_filter_enable(PCNT_UNIT);
+  pcnt_chan_config_t cc = {};
+  cc.edge_gpio_num = fpin;
+  cc.level_gpio_num = gpin;
+  pcnt_new_channel(FreqCountESPgate::pcnt_unit, &cc, &pcnt_chan);
+  pcnt_channel_set_edge_action(pcnt_chan, PCNT_CHANNEL_EDGE_ACTION_INCREASE,
+                               PCNT_CHANNEL_EDGE_ACTION_HOLD);
+  // Gate=0 → HOLD
+  // Gate=1 → COUNT
+  pcnt_channel_set_level_action(pcnt_chan, PCNT_CHANNEL_LEVEL_ACTION_KEEP,
+                                PCNT_CHANNEL_LEVEL_ACTION_HOLD);
 
-  // initialize PCNT count
-  pcnt_counter_pause(PCNT_UNIT);
-  pcnt_counter_clear(PCNT_UNIT);
-
-  // enable PCNT overflow interrupt
-  pcnt_event_enable(PCNT_UNIT, PCNT_EVT_H_LIM);
-  // pcnt_event_enable(PCNT_UNIT, PCNT_EVT_L_LIM);
-  pcnt_isr_register(onPcnt, NULL, ESP_INTR_FLAG_IRAM, &pcntisrHandle);
-  pcnt_intr_enable(PCNT_UNIT);
-
-  pcnt_counter_resume(PCNT_UNIT);  // start count
+  pcnt_event_callbacks_t cbs = {};
+  cbs.on_reach = onPcntReach;
+  pcnt_unit_register_event_callbacks(FreqCountESPgate::pcnt_unit, &cbs, NULL);
+  pcnt_unit_add_watch_point(FreqCountESPgate::pcnt_unit, 32767);
+  pcnt_unit_enable(FreqCountESPgate::pcnt_unit);
+  pcnt_unit_start(FreqCountESPgate::pcnt_unit);
 }
 
-  // LEDC settings for gate signal
-bool FreqCountESPgate::setupLedc(uint32_t freq, ledc_timer_bit_t resolution, uint32_t duty) {
-  ledc_timer_config_t timer_conf = {
-      .speed_mode       = PWM_MODE,
-      .duty_resolution  = resolution,
-      .timer_num        = LEDC_TIMER,
-      .freq_hz          = freq, // temporal value
-      .clk_cfg          = LEDC_USE_APB_CLK
-  };
-  ledc_timer_config(&timer_conf);
-
-  ledc_channel_config_t ch_conf = {
-      .gpio_num       = gate_pin,
-      .speed_mode     = PWM_MODE,
-      .channel        = LEDC_CHANNEL,
-      .intr_type      = LEDC_INTR_DISABLE,
-      .timer_sel      = LEDC_TIMER,
-      .duty           = duty, // 1000ms or 100ms
-      .hpoint         = 0
-  };
-  ledc_channel_config(&ch_conf);
-
-  vTaskDelay(10); // to avoid Guru Meditation Error
-  ledc_hal_context_t ledc_hal;
-  ledc_hal_init(&ledc_hal, PWM_MODE);
-  vTaskDelay(10); // to avoid Guru Meditation Error
-  uint32_t div_q10_8 = 625 << 8; // 1 tic 1/128000 sec
-  ledc_hal_set_clock_divider(&ledc_hal, LEDC_TIMER, div_q10_8);
-  vTaskDelay(10); // to avoid Guru Meditation Error
-  attachInterrupt(gate_pin, onLedc, FALLING);
-  return true;
+// MCPWM settings for gate signal
+void FreqCountESPgate::setupMCPWM(uint32_t freq, uint16_t period_ticks, uint32_t cmp_ticks) {
+  mcpwm_timer_config_t tc = {};
+  tc.group_id = 0;
+  tc.clk_src = MCPWM_TIMER_CLK_SRC_DEFAULT;
+  tc.resolution_hz = freq;  // 50kHz timebase 1tick = 20us
+  tc.count_mode = MCPWM_TIMER_COUNT_MODE_UP;
+  tc.period_ticks = period_ticks;  // 50500tick = 1.01000s : 1.00000s High 10ms Low
+  mcpwm_new_timer(&tc, &timer_handle);
+  mcpwm_operator_config_t oc = {};
+  oc.group_id = 0;
+  mcpwm_new_operator(&oc, &oper_handle);
+  mcpwm_operator_connect_timer(oper_handle, timer_handle);
+  mcpwm_comparator_config_t cc = {};
+  mcpwm_new_comparator(oper_handle, &cc, &cmp_handle);
+  mcpwm_comparator_set_compare_value(cmp_handle, cmp_ticks);
+  mcpwm_generator_config_t gc = {};
+  gc.gen_gpio_num = gate_pin;
+  mcpwm_new_generator(oper_handle, &gc, &gen_handle);
+  mcpwm_generator_set_action_on_timer_event(
+    gen_handle,
+    MCPWM_GEN_TIMER_EVENT_ACTION(
+      MCPWM_TIMER_DIRECTION_UP, MCPWM_TIMER_EVENT_EMPTY, MCPWM_GEN_ACTION_HIGH));
+  mcpwm_generator_set_action_on_compare_event(
+    gen_handle,
+    MCPWM_GEN_COMPARE_EVENT_ACTION(
+      MCPWM_TIMER_DIRECTION_UP, cmp_handle, MCPWM_GEN_ACTION_LOW));
+  mcpwm_timer_enable(timer_handle);
+  // mcpwm_timer_start_stop(timer_handle, MCPWM_TIMER_START_NO_STOP);
 }
 
 bool FreqCountESPgate::begin(uint16_t msec, uint8_t fpin, uint8_t gpin) {
-  bool status;
   count_ovf = 0;
   fflag = false;
-  first = true;
+  msec = constrain(msec, 1, 16373);  // max (65535 - 40) / 4
   gate_time = msec;
   gate_pin = gpin;
+  setupMCPWM(4000, 4 * msec + 40, 4 * msec);  // tick=0.25ms : 4*msec High 10ms Low
+  attachInterrupt(gate_pin, onMcPwm, FALLING);
   setupPcnt(fpin, gpin);
-  if (msec > 500) // 1sec
-    status = setupLedc(1, LEDC_TIMER_17_BIT, 128000);  // 1Hz, 17bit, 1000ms
-  else            // 0.1sec
-    status = setupLedc(8, LEDC_TIMER_14_BIT, 12800);   // 8Hz, 14bit, 100ms
-  if (!status) return false;
+  mcpwm_timer_start_stop(timer_handle, MCPWM_TIMER_START_NO_STOP);
   const esp_timer_create_args_t timer_args = {
-      .callback = &onDelay,
-      .arg = NULL,
-      .name = "delay_int"
+    .callback = &onDelay,
+    .arg = NULL,
+    .name = "delay_int"
   };
   esp_timer_create(&timer_args, &delay_int);
   return true;
@@ -147,20 +140,11 @@ bool FreqCountESPgate::begin(uint16_t msec, uint8_t fpin, uint8_t gpin) {
 uint32_t FreqCountESPgate::read() {
   uint32_t result;
   fflag = false;
-  if (FreqCountESPgate::gate_time > 500)
-    result = fcount;
-  else
-    result = fcount * 10;
-  return result;
+  return fcount;
 }
 
 uint8_t FreqCountESPgate::available() {
   if (fflag) {
-    if (first) {
-      first = false;
-      fflag = false;
-      return 0;
-    }
     return 1;
   } else {
     return 0;
@@ -168,13 +152,13 @@ uint8_t FreqCountESPgate::available() {
 }
 
 void FreqCountESPgate::end() {
-  pcnt_counter_pause(PCNT_UNIT);
-  pcnt_intr_disable(PCNT_UNIT);
-  pcnt_isr_unregister(pcntisrHandle);
+  mcpwm_timer_start_stop(timer_handle, MCPWM_TIMER_STOP_FULL);
+  mcpwm_timer_disable(timer_handle);
+  mcpwm_del_timer(timer_handle);
+  pcnt_unit_stop(FreqCountESPgate::pcnt_unit);
+  pcnt_unit_disable(FreqCountESPgate::pcnt_unit);
+  pcnt_del_unit(FreqCountESPgate::pcnt_unit);
   detachInterrupt(gate_pin);
-  // ledc_set_duty(PWM_MODE, LEDC_CHANNEL, 0);
-  // ledc_update_duty(PWM_MODE, LEDC_CHANNEL);
-  // ledc_timer_pause(PWM_MODE, LEDC_TIMER);
   esp_timer_stop(delay_int);
   esp_timer_delete(delay_int);
 }
@@ -194,26 +178,24 @@ void FreqCountESPgate::pulse_test(uint8_t gpio_pin, uint32_t freq) {
   // ledcWrite(gpio_pin, 1 << (resolution - 1)); // duty 50%
 
   ledc_timer_config_t timer_conf = {
-      .speed_mode       = PWM_MODE,
-      .duty_resolution  = (ledc_timer_bit_t)resolution,
-      .timer_num        = PWM_TIMER,
-      .freq_hz          = freq, // temporal value
-      .clk_cfg          = LEDC_USE_APB_CLK
+    .speed_mode = PWM_MODE,
+    .duty_resolution = (ledc_timer_bit_t)resolution,
+    .timer_num = PWM_TIMER,
+    .freq_hz = freq,  // temporal value
+    .clk_cfg = LEDC_USE_APB_CLK
   };
   ledc_timer_config(&timer_conf);
-  vTaskDelay(10); // to avoid Guru Meditation Error
 
   ledc_channel_config_t ch_conf = {
-      .gpio_num       = gpio_pin,
-      .speed_mode     = PWM_MODE,
-      .channel        = PWM_CHANNEL,
-      .intr_type      = LEDC_INTR_DISABLE,
-      .timer_sel      = PWM_TIMER,
-      .duty           = 1 << (resolution - 1),
-      .hpoint         = 0
+    .gpio_num = gpio_pin,
+    .speed_mode = PWM_MODE,
+    .channel = PWM_CHANNEL,
+    .intr_type = LEDC_INTR_DISABLE,
+    .timer_sel = PWM_TIMER,
+    .duty = 1 << (resolution - 1),
+    .hpoint = 0
   };
   ledc_channel_config(&ch_conf);
-  vTaskDelay(10); // to avoid Guru Meditation Error
 
   // ledc_hal_context_t ledc_hal;
   // ledc_hal_init(&ledc_hal, PWM_MODE);
